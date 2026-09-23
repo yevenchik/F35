@@ -1,20 +1,60 @@
-# Python bytecode & cache
+# ==========================================
+# Security & Credentials (NEVER COMMIT)
+# ==========================================
+*.env
+*.env.*
+.env
+.env.*
+*key*
+*token*
+*secret*
+*credential*
+*.pem
+*.cer
+*.crt
+*.pfx
+*.p12
+*.pub
+askpass*
+id_rsa*
+
+# ==========================================
+# Python & Bytecode
+# ==========================================
 __pycache__/
 *.py[cod]
 *$py.class
 *.log
+*.tmp
+*.bak
 
-# OS generated files
+# ==========================================
+# OS & System Artifacts
+# ==========================================
 .DS_Store
 Thumbs.db
 ehthumbs.db
 desktop.ini
 
-# IDE & Editor files
+# ==========================================
+# IDE & Editor Configurations
+# ==========================================
 .vscode/
 .idea/
 *.swp
 *.swo
+*.sublime-project
+*.sublime-workspace
 
-# Temporary test scripts
-test_round3.py
+# ==========================================
+# Intermediate Scratch & Patch Scripts
+# ==========================================
+patch_*.py
+test_touch_*.py
+verify_round*.py
+build_round*.py
+build_ultra_*.py
+sync_*.py
+refine_*.py
+generate_*.py
+*_upgrade.js
