@@ -926,217 +926,630 @@
     }
 
     // =========================================================================
-    // 2. PROCEDURAL SOUND ENGINE WITH COCKPIT ACOUSTIC DAMPENING & VOICE ALERTS
+    // 2. HYPER-REALISTIC PROCEDURAL F-35 SOUND ENGINE WITH DUAL-SPOOL F135
+    //    ACOUSTICS, AFTERBURNER CRACKLE, GAU-22/A GATLING ROAR & COCKPIT ANC
     // =========================================================================
     class SoundEngine {
       constructor() {
         this.ctx = null;
-        this.engineGain = null;
-        this.whineOsc = null;
-        this.rumbleGain = null;
-        this.afterburnerGain = null;
+        this.masterGain = null;
+        this.compressor = null;
         this.cockpitFilter = null;
         this.isMuffled = false;
         this.hasSonicBoomed = false;
+        this.lastOnGround = false;
+        this.lastGunTime = 0;
+
+        // F135 Engine Synthesis Nodes
+        this.n1Osc = null;
+        this.n1Gain = null;
+        this.n1Filter = null;
+        this.n2Osc = null;
+        this.n2Gain = null;
+        this.n2Filter = null;
+        this.roarNode = null;
+        this.roarFilter = null;
+        this.roarGain = null;
+        this.abSubOsc = null;
+        this.abSubGain = null;
+        this.abCrackleNode = null;
+        this.abCrackleFilter = null;
+        this.abCrackleGain = null;
+
+        // Aerodynamic Slipstream & Airframe Buffet
+        this.windNode = null;
+        this.windFilter = null;
+        this.windGain = null;
+        this.buffetNode = null;
+        this.buffetFilter = null;
+        this.buffetGain = null;
+
+        // Cockpit Ambience & Runway Ground Roll
+        this.avionicsOsc = null;
+        this.avionicsGain = null;
+        this.groundRollNode = null;
+        this.groundRollFilter = null;
+        this.groundRollGain = null;
+
+        // Spool-up dynamic tracking
+        this.currentSpool = 0.5;
+      }
+
+      createNoiseBuffer(type = 'pink', duration = 3.0) {
+        if (!this.ctx) return null;
+        const sampleRate = this.ctx.sampleRate;
+        const length = Math.floor(sampleRate * duration);
+        const buffer = this.ctx.createBuffer(1, length, sampleRate);
+        const data = buffer.getChannelData(0);
+
+        if (type === 'brown') {
+          let last = 0.0;
+          for (let i = 0; i < length; i++) {
+            const white = Math.random() * 2 - 1;
+            last = (last + (0.025 * white)) / 1.025;
+            data[i] = last * 3.8;
+          }
+        } else if (type === 'pink') {
+          let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+          for (let i = 0; i < length; i++) {
+            const white = Math.random() * 2 - 1;
+            b0 = 0.99886 * b0 + white * 0.0555179;
+            b1 = 0.99332 * b1 + white * 0.0750759;
+            b2 = 0.96900 * b2 + white * 0.1538520;
+            b3 = 0.86650 * b3 + white * 0.3104856;
+            b4 = 0.55000 * b4 + white * 0.5329522;
+            b5 = -0.7616 * b5 - white * 0.0168980;
+            data[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
+            b6 = white * 0.115926;
+          }
+        } else {
+          // White noise
+          for (let i = 0; i < length; i++) {
+            data[i] = Math.random() * 2 - 1;
+          }
+        }
+        return buffer;
       }
 
       init() {
         if (this.ctx) return;
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        this.ctx = new AudioContext();
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        this.ctx = new AudioContextClass();
 
-        // Master output & Cockpit Low-Pass Filter
+        // 1. Broadcast-Grade Dynamics Compressor (Punchy, zero digital clipping)
+        this.compressor = this.ctx.createDynamicsCompressor();
+        this.compressor.threshold.value = -12;
+        this.compressor.knee.value = 24;
+        this.compressor.ratio.value = 10;
+        this.compressor.attack.value = 0.003;
+        this.compressor.release.value = 0.20;
+        this.compressor.connect(this.ctx.destination);
+
+        // 2. Master Gain Bus
+        this.masterGain = this.ctx.createGain();
+        this.masterGain.gain.value = 0.85;
+        this.masterGain.connect(this.compressor);
+
+        // 3. Cockpit Active Noise Reduction (ANR) Low-Pass Filter
         this.cockpitFilter = this.ctx.createBiquadFilter();
         this.cockpitFilter.type = 'lowpass';
-        this.cockpitFilter.frequency.value = 18000; // Unmuffled default
-        this.cockpitFilter.connect(this.ctx.destination);
+        this.cockpitFilter.frequency.value = 18000; // Open unmuffled air
+        this.cockpitFilter.Q.value = 0.707;
+        this.cockpitFilter.connect(this.masterGain);
 
-        // 1. Turbofan Whine Oscillator
-        this.whineOsc = this.ctx.createOscillator();
-        this.whineOsc.type = 'sawtooth';
-        const whineFilter = this.ctx.createBiquadFilter();
-        whineFilter.type = 'bandpass';
-        whineFilter.frequency.value = 850;
-        whineFilter.Q.value = 3.5;
+        // --- LAYER A: N1 Low-Pressure Fan Whine (Multi-blade turbofan hum) ---
+        this.n1Osc = this.ctx.createOscillator();
+        this.n1Osc.type = 'sawtooth';
+        this.n1Filter = this.ctx.createBiquadFilter();
+        this.n1Filter.type = 'bandpass';
+        this.n1Filter.frequency.value = 340;
+        this.n1Filter.Q.value = 3.2;
+        this.n1Gain = this.ctx.createGain();
+        this.n1Gain.gain.value = 0.038;
+        this.n1Osc.connect(this.n1Filter);
+        this.n1Filter.connect(this.n1Gain);
+        this.n1Gain.connect(this.cockpitFilter);
+        this.n1Osc.start();
 
-        this.engineGain = this.ctx.createGain();
-        this.engineGain.gain.value = 0.04;
+        // --- LAYER B: N2 High-Pressure Compressor Whistle (Singing turbine whine) ---
+        this.n2Osc = this.ctx.createOscillator();
+        this.n2Osc.type = 'sine';
+        this.n2Filter = this.ctx.createBiquadFilter();
+        this.n2Filter.type = 'bandpass';
+        this.n2Filter.frequency.value = 1580;
+        this.n2Filter.Q.value = 4.6;
+        this.n2Gain = this.ctx.createGain();
+        this.n2Gain.gain.value = 0.024;
+        this.n2Osc.connect(this.n2Filter);
+        this.n2Filter.connect(this.n2Gain);
+        this.n2Gain.connect(this.cockpitFilter);
+        this.n2Osc.start();
 
-        this.whineOsc.connect(whineFilter);
-        whineFilter.connect(this.engineGain);
-        this.engineGain.connect(this.cockpitFilter);
-        this.whineOsc.start();
+        // --- LAYER C: Core Jet Blast Exhaust Roar (Brownian Noise) ---
+        const roarBuffer = this.createNoiseBuffer('brown', 3.0);
+        this.roarNode = this.ctx.createBufferSource();
+        this.roarNode.buffer = roarBuffer;
+        this.roarNode.loop = true;
+        this.roarFilter = this.ctx.createBiquadFilter();
+        this.roarFilter.type = 'lowpass';
+        this.roarFilter.frequency.value = 450;
+        this.roarGain = this.ctx.createGain();
+        this.roarGain.gain.value = 0.08;
+        this.roarNode.connect(this.roarFilter);
+        this.roarFilter.connect(this.roarGain);
+        this.roarGain.connect(this.cockpitFilter);
+        this.roarNode.start();
 
-        // 2. Jet Blast Noise (Brownian Roar)
-        const bufferSize = this.ctx.sampleRate * 2;
-        const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-        const data = noiseBuffer.getChannelData(0);
-        let lastOut = 0.0;
-        for (let i = 0; i < bufferSize; i++) {
-          const white = Math.random() * 2 - 1;
-          data[i] = (lastOut + (0.02 * white)) / 1.02;
-          lastOut = data[i];
-          data[i] *= 3.5;
-        }
+        // --- LAYER D: Afterburner Sub-Bass Combustion Rumble (42Hz) ---
+        this.abSubOsc = this.ctx.createOscillator();
+        this.abSubOsc.type = 'triangle';
+        this.abSubOsc.frequency.value = 42;
+        this.abSubGain = this.ctx.createGain();
+        this.abSubGain.gain.value = 0.0;
+        this.abSubOsc.connect(this.abSubGain);
+        this.abSubGain.connect(this.cockpitFilter);
+        this.abSubOsc.start();
 
-        const roarNoise = this.ctx.createBufferSource();
-        roarNoise.buffer = noiseBuffer;
-        roarNoise.loop = true;
+        // --- LAYER E: Afterburner Tearing Canvas Flame Crackle (Pink Noise) ---
+        const pinkBuffer = this.createNoiseBuffer('pink', 3.0);
+        this.abCrackleNode = this.ctx.createBufferSource();
+        this.abCrackleNode.buffer = pinkBuffer;
+        this.abCrackleNode.loop = true;
+        this.abCrackleFilter = this.ctx.createBiquadFilter();
+        this.abCrackleFilter.type = 'bandpass';
+        this.abCrackleFilter.frequency.value = 2400;
+        this.abCrackleFilter.Q.value = 2.2;
+        this.abCrackleGain = this.ctx.createGain();
+        this.abCrackleGain.gain.value = 0.0;
+        this.abCrackleNode.connect(this.abCrackleFilter);
+        this.abCrackleFilter.connect(this.abCrackleGain);
+        this.abCrackleGain.connect(this.cockpitFilter);
+        this.abCrackleNode.start();
 
-        const roarFilter = this.ctx.createBiquadFilter();
-        roarFilter.type = 'lowpass';
-        roarFilter.frequency.value = 420;
+        // --- LAYER F: Aerodynamic Slipstream & Airframe High-G Buffet ---
+        const whiteBuffer = this.createNoiseBuffer('white', 3.0);
+        this.windNode = this.ctx.createBufferSource();
+        this.windNode.buffer = whiteBuffer;
+        this.windNode.loop = true;
+        this.windFilter = this.ctx.createBiquadFilter();
+        this.windFilter.type = 'bandpass';
+        this.windFilter.frequency.value = 850;
+        this.windFilter.Q.value = 1.3;
+        this.windGain = this.ctx.createGain();
+        this.windGain.gain.value = 0.0;
+        this.windNode.connect(this.windFilter);
+        this.windFilter.connect(this.windGain);
+        this.windGain.connect(this.cockpitFilter);
+        this.windNode.start();
 
-        this.rumbleGain = this.ctx.createGain();
-        this.rumbleGain.gain.value = 0.08;
+        this.buffetNode = this.ctx.createBufferSource();
+        this.buffetNode.buffer = roarBuffer;
+        this.buffetNode.loop = true;
+        this.buffetFilter = this.ctx.createBiquadFilter();
+        this.buffetFilter.type = 'lowpass';
+        this.buffetFilter.frequency.value = 95;
+        this.buffetGain = this.ctx.createGain();
+        this.buffetGain.gain.value = 0.0;
+        this.buffetNode.connect(this.buffetFilter);
+        this.buffetFilter.connect(this.buffetGain);
+        this.buffetGain.connect(this.cockpitFilter);
+        this.buffetNode.start();
 
-        roarNoise.connect(roarFilter);
-        roarFilter.connect(this.rumbleGain);
-        this.rumbleGain.connect(this.cockpitFilter);
-        roarNoise.start();
+        // --- LAYER G: Internal Cockpit 400Hz Avionics Transformer Hum ---
+        this.avionicsOsc = this.ctx.createOscillator();
+        this.avionicsOsc.type = 'sine';
+        this.avionicsOsc.frequency.value = 400; // Mil-std 400Hz inverter hum
+        this.avionicsGain = this.ctx.createGain();
+        this.avionicsGain.gain.value = 0.0; // only audible in cockpit
+        this.avionicsOsc.connect(this.avionicsGain);
+        this.avionicsGain.connect(this.masterGain);
+        this.avionicsOsc.start();
 
-        // 3. Afterburner Sub-Bass Rumble
-        this.abOsc = this.ctx.createOscillator();
-        this.abOsc.type = 'triangle';
-        this.abOsc.frequency.value = 55;
-        this.afterburnerGain = this.ctx.createGain();
-        this.afterburnerGain.gain.value = 0.0;
-        this.abOsc.connect(this.afterburnerGain);
-        this.afterburnerGain.connect(this.cockpitFilter);
-        this.abOsc.start();
+        // --- LAYER H: Runway Tarmac Ground Roll ---
+        this.groundRollNode = this.ctx.createBufferSource();
+        this.groundRollNode.buffer = roarBuffer;
+        this.groundRollNode.loop = true;
+        this.groundRollFilter = this.ctx.createBiquadFilter();
+        this.groundRollFilter.type = 'lowpass';
+        this.groundRollFilter.frequency.value = 120;
+        this.groundRollGain = this.ctx.createGain();
+        this.groundRollGain.gain.value = 0.0;
+        this.groundRollNode.connect(this.groundRollFilter);
+        this.groundRollFilter.connect(this.groundRollGain);
+        this.groundRollGain.connect(this.cockpitFilter);
+        this.groundRollNode.start();
       }
 
       setCockpitMuffled(muffled) {
         if (!this.ctx || !this.cockpitFilter) return;
         this.isMuffled = muffled;
-        const targetFreq = muffled ? 650 : 18000;
-        this.cockpitFilter.frequency.setTargetAtTime(targetFreq, this.ctx.currentTime, 0.15);
+        const now = this.ctx.currentTime;
+        const targetFreq = muffled ? 520 : 18000;
+        this.cockpitFilter.frequency.setTargetAtTime(targetFreq, now, 0.12);
+
+        // In cockpit: avionics hum becomes softly audible
+        if (this.avionicsGain) {
+          const avionicsVol = muffled ? 0.032 : 0.0;
+          this.avionicsGain.gain.setTargetAtTime(avionicsVol, now, 0.15);
+        }
+      }
+
+      playRadioSquelch() {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        const filter = this.ctx.createBiquadFilter();
+
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(2800, now);
+        osc.frequency.exponentialRampToValueAtTime(1400, now + 0.04);
+
+        filter.type = 'bandpass';
+        filter.frequency.value = 2200;
+        filter.Q.value = 3.0;
+
+        gain.gain.setValueAtTime(0.08, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.masterGain);
+        osc.start(now);
+        osc.stop(now + 0.04);
       }
 
       speakAlert(phrase) {
+        this.playRadioSquelch();
         if (!('speechSynthesis' in window)) return;
         try {
           window.speechSynthesis.cancel();
           const utterance = new SpeechSynthesisUtterance(phrase);
-          utterance.rate = 1.15;
-          utterance.pitch = 0.95;
-          utterance.volume = 0.9;
+          utterance.rate = 1.18;
+          utterance.pitch = 0.98;
+          utterance.volume = 0.92;
+          utterance.onend = () => { this.playRadioSquelch(); };
           window.speechSynthesis.speak(utterance);
         } catch (e) {}
       }
 
-      update(throttle, speedKnots) {
+      speak(phrase) {
+        this.speakAlert(phrase);
+      }
+
+      update(throttle, speedKnots, gForce = 1.0, aoaDeg = 2.0, onGround = false) {
         if (!this.ctx) return;
+        const now = this.ctx.currentTime;
         const t = Math.max(0, Math.min(1.3, throttle));
-        const freq = 320 + t * 900 + (speedKnots / 700) * 400;
-        this.whineOsc.frequency.setTargetAtTime(freq, this.ctx.currentTime, 0.08);
 
-        const targetGain = 0.03 + t * 0.08;
-        this.engineGain.gain.setTargetAtTime(targetGain, this.ctx.currentTime, 0.08);
+        // Engine Spool Inertia (turbofan lag simulation)
+        this.currentSpool += (t - this.currentSpool) * 0.08;
+        const spool = this.currentSpool;
+        const mach = speedKnots / 661.47;
 
-        const roarTarget = 0.05 + t * 0.14 + (speedKnots / 800) * 0.08;
-        this.rumbleGain.gain.setTargetAtTime(roarTarget, this.ctx.currentTime, 0.08);
+        // 1. N1 Low-Pressure Fan Whine
+        const n1Freq = 260 + spool * 520 + (speedKnots / 750) * 180;
+        this.n1Osc.frequency.setTargetAtTime(n1Freq, now, 0.06);
+        this.n1Filter.frequency.setTargetAtTime(n1Freq * 1.05, now, 0.06);
+        const n1Vol = 0.022 + spool * 0.045;
+        this.n1Gain.gain.setTargetAtTime(n1Vol, now, 0.06);
 
-        const abVal = (t > 1.0) ? (t - 1.0) * 0.6 : 0.0;
-        this.afterburnerGain.gain.setTargetAtTime(abVal, this.ctx.currentTime, 0.05);
+        // 2. N2 High-Pressure Compressor Whistle
+        const n2Freq = 1250 + spool * 1350 + (speedKnots / 750) * 250;
+        this.n2Osc.frequency.setTargetAtTime(n2Freq, now, 0.05);
+        this.n2Filter.frequency.setTargetAtTime(n2Freq, now, 0.05);
+        const n2Vol = 0.015 + spool * 0.038;
+        this.n2Gain.gain.setTargetAtTime(n2Vol, now, 0.05);
 
-        if (speedKnots > 661 && !this.hasSonicBoomed) {
+        // 3. Core Jet Exhaust Blast Roar
+        const roarFreq = 260 + spool * 480 + (speedKnots / 600) * 220;
+        this.roarFilter.frequency.setTargetAtTime(roarFreq, now, 0.08);
+        const roarVol = 0.05 + spool * 0.16 + (speedKnots / 800) * 0.07;
+        this.roarGain.gain.setTargetAtTime(roarVol, now, 0.08);
+
+        // 4. Afterburner Sub-Bass & Tearing Canvas Crackle (when throttle > 100%)
+        if (t > 1.0) {
+          const abFactor = (t - 1.0) / 0.30; // 0 to 1
+          this.abSubGain.gain.setTargetAtTime(abFactor * 0.55, now, 0.04);
+          this.abCrackleGain.gain.setTargetAtTime(abFactor * 0.28, now, 0.04);
+        } else {
+          this.abSubGain.gain.setTargetAtTime(0.0, now, 0.08);
+          this.abCrackleGain.gain.setTargetAtTime(0.0, now, 0.08);
+        }
+
+        // 5. Slipstream Wind Rush (scales with dynamic pressure)
+        const windIntensity = Math.pow(Math.min(1.0, speedKnots / 720), 1.8);
+        const windVol = windIntensity * 0.14;
+        this.windGain.gain.setTargetAtTime(windVol, now, 0.08);
+        this.windFilter.frequency.setTargetAtTime(600 + windIntensity * 1200, now, 0.08);
+
+        // 6. High-G & High-AoA Airframe Buffet Vibration
+        const absG = Math.abs(gForce);
+        const absAoA = Math.abs(aoaDeg);
+        let buffetFactor = 0.0;
+        if (absG > 4.5) buffetFactor += (absG - 4.5) / 4.5;
+        if (absAoA > 11.0) buffetFactor += (absAoA - 11.0) / 12.0;
+        buffetFactor = Math.min(1.0, buffetFactor);
+        this.buffetGain.gain.setTargetAtTime(buffetFactor * 0.22, now, 0.05);
+
+        // 7. Ground Roll & Touchdown Chirp
+        if (onGround && !this.lastOnGround && speedKnots > 35) {
+          this.playTouchdown();
+        }
+        if (onGround && speedKnots > 15) {
+          const rollVol = Math.min(0.12, (speedKnots / 160) * 0.12);
+          this.groundRollGain.gain.setTargetAtTime(rollVol, now, 0.05);
+        } else {
+          this.groundRollGain.gain.setTargetAtTime(0.0, now, 0.10);
+        }
+        this.lastOnGround = onGround;
+
+        // 8. Supersonic Shockwave (Sonic Boom)
+        if (mach >= 1.0 && !this.hasSonicBoomed) {
           this.playSonicBoom();
           this.hasSonicBoomed = true;
-        } else if (speedKnots < 640) {
+        } else if (mach < 0.96) {
           this.hasSonicBoomed = false;
         }
       }
 
       playGunfire() {
         if (!this.ctx) return;
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(140, this.ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(35, this.ctx.currentTime + 0.05);
-        gain.gain.setValueAtTime(0.18, this.ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.05);
-        osc.connect(gain);
-        gain.connect(this.cockpitFilter);
-        osc.start();
-        osc.stop(this.ctx.currentTime + 0.05);
+        const now = this.ctx.currentTime;
+
+        // GAU-22/A 25mm 4-barrel Gatling Cannon: 55 rounds/sec cyclic rate
+        // 1. Heavy Muzzle Concussion Thump (48Hz punch)
+        const punchOsc = this.ctx.createOscillator();
+        const punchGain = this.ctx.createGain();
+        punchOsc.type = 'sawtooth';
+        punchOsc.frequency.setValueAtTime(145, now);
+        punchOsc.frequency.exponentialRampToValueAtTime(42, now + 0.06);
+
+        punchGain.gain.setValueAtTime(0.24, now);
+        punchGain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+        punchOsc.connect(punchGain);
+        punchGain.connect(this.cockpitFilter);
+        punchOsc.start(now);
+        punchOsc.stop(now + 0.06);
+
+        // 2. High-Frequency Explosive Muzzle Crack (Mechanical Gatling tearing roar)
+        const crackOsc = this.ctx.createOscillator();
+        const crackGain = this.ctx.createGain();
+        const crackFilter = this.ctx.createBiquadFilter();
+        crackOsc.type = 'square';
+        crackOsc.frequency.setValueAtTime(55, now); // 55Hz Gatling cyclic rate carrier
+
+        crackFilter.type = 'bandpass';
+        crackFilter.frequency.setValueAtTime(1600, now);
+        crackFilter.Q.value = 2.4;
+
+        crackGain.gain.setValueAtTime(0.16, now);
+        crackGain.gain.exponentialRampToValueAtTime(0.001, now + 0.065);
+
+        crackOsc.connect(crackFilter);
+        crackFilter.connect(crackGain);
+        crackGain.connect(this.cockpitFilter);
+        crackOsc.start(now);
+        crackOsc.stop(now + 0.065);
+
+        // 3. Metallic Breech Cycling Transient
+        const clickOsc = this.ctx.createOscillator();
+        const clickGain = this.ctx.createGain();
+        clickOsc.type = 'triangle';
+        clickOsc.frequency.setValueAtTime(3200, now);
+        clickOsc.frequency.exponentialRampToValueAtTime(800, now + 0.02);
+        clickGain.gain.setValueAtTime(0.09, now);
+        clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.02);
+        clickOsc.connect(clickGain);
+        clickGain.connect(this.cockpitFilter);
+        clickOsc.start(now);
+        clickOsc.stop(now + 0.02);
       }
 
       playMissileLaunch() {
         if (!this.ctx) return;
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(380, this.ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(120, this.ctx.currentTime + 0.7);
-        gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.7);
-        osc.connect(gain);
-        gain.connect(this.cockpitFilter);
-        osc.start();
-        osc.stop(this.ctx.currentTime + 0.7);
+        const now = this.ctx.currentTime;
+
+        // Phase 1: High-pressure pneumatic ejector piston punch ("CLANK-THUMP")
+        const ejectOsc = this.ctx.createOscillator();
+        const ejectGain = this.ctx.createGain();
+        ejectOsc.type = 'sine';
+        ejectOsc.frequency.setValueAtTime(110, now);
+        ejectOsc.frequency.exponentialRampToValueAtTime(28, now + 0.08);
+        ejectGain.gain.setValueAtTime(0.35, now);
+        ejectGain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+        ejectOsc.connect(ejectGain);
+        ejectGain.connect(this.cockpitFilter);
+        ejectOsc.start(now);
+        ejectOsc.stop(now + 0.08);
+
+        // Phase 2: Solid-fuel rocket motor ignition & expanding plume blast
+        const ignTime = now + 0.06;
+        const motorOsc = this.ctx.createOscillator();
+        const motorGain = this.ctx.createGain();
+        const motorFilter = this.ctx.createBiquadFilter();
+
+        motorOsc.type = 'sawtooth';
+        motorOsc.frequency.setValueAtTime(480, ignTime);
+        motorOsc.frequency.exponentialRampToValueAtTime(85, ignTime + 1.1);
+
+        motorFilter.type = 'lowpass';
+        motorFilter.frequency.setValueAtTime(1200, ignTime);
+        motorFilter.frequency.exponentialRampToValueAtTime(350, ignTime + 1.1);
+
+        motorGain.gain.setValueAtTime(0.32, ignTime);
+        motorGain.gain.exponentialRampToValueAtTime(0.001, ignTime + 1.1);
+
+        motorOsc.connect(motorFilter);
+        motorFilter.connect(motorGain);
+        motorGain.connect(this.cockpitFilter);
+        motorOsc.start(ignTime);
+        motorOsc.stop(ignTime + 1.1);
       }
 
       playFlare() {
         if (!this.ctx) return;
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(800, this.ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(180, this.ctx.currentTime + 0.12);
-        gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.12);
-        osc.connect(gain);
-        gain.connect(this.cockpitFilter);
-        osc.start();
-        osc.stop(this.ctx.currentTime + 0.12);
+        const now = this.ctx.currentTime;
+
+        // Pyrotechnic Squib Ejection Pop
+        const popOsc = this.ctx.createOscillator();
+        const popGain = this.ctx.createGain();
+        popOsc.type = 'sine';
+        popOsc.frequency.setValueAtTime(950, now);
+        popOsc.frequency.exponentialRampToValueAtTime(140, now + 0.08);
+        popGain.gain.setValueAtTime(0.26, now);
+        popGain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+        popOsc.connect(popGain);
+        popGain.connect(this.cockpitFilter);
+        popOsc.start(now);
+        popOsc.stop(now + 0.08);
+
+        // Burning MTV Phosphorus Combustion Hiss & Slipstream Whoosh
+        const hissOsc = this.ctx.createOscillator();
+        const hissFilter = this.ctx.createBiquadFilter();
+        const hissGain = this.ctx.createGain();
+        hissOsc.type = 'sawtooth';
+        hissOsc.frequency.setValueAtTime(2600, now + 0.02);
+        hissOsc.frequency.exponentialRampToValueAtTime(650, now + 0.35);
+
+        hissFilter.type = 'bandpass';
+        hissFilter.frequency.value = 2400;
+        hissFilter.Q.value = 2.5;
+
+        hissGain.gain.setValueAtTime(0.18, now + 0.02);
+        hissGain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+
+        hissOsc.connect(hissFilter);
+        hissFilter.connect(hissGain);
+        hissGain.connect(this.cockpitFilter);
+        hissOsc.start(now + 0.02);
+        hissOsc.stop(now + 0.35);
       }
 
       playSonicBoom() {
         if (!this.ctx) return;
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(80, this.ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(20, this.ctx.currentTime + 0.9);
-        gain.gain.setValueAtTime(0.7, this.ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.9);
-        osc.connect(gain);
-        gain.connect(this.cockpitFilter);
-        osc.start();
-        osc.stop(this.ctx.currentTime + 0.9);
+        const now = this.ctx.currentTime;
+
+        // Atmospheric N-Wave: Twin supersonic shockwaves spaced ~95ms apart
+        // 1. Primary Bow Shockwave Compression Crack
+        const shock1Osc = this.ctx.createOscillator();
+        const shock1Gain = this.ctx.createGain();
+        shock1Osc.type = 'triangle';
+        shock1Osc.frequency.setValueAtTime(125, now);
+        shock1Osc.frequency.exponentialRampToValueAtTime(22, now + 0.7);
+        shock1Gain.gain.setValueAtTime(0.85, now);
+        shock1Gain.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+        shock1Osc.connect(shock1Gain);
+        shock1Gain.connect(this.cockpitFilter);
+        shock1Osc.start(now);
+        shock1Osc.stop(now + 0.7);
+
+        // 2. Secondary Tail Shockwave Expansion Thump (95ms later)
+        const t2 = now + 0.095;
+        const shock2Osc = this.ctx.createOscillator();
+        const shock2Gain = this.ctx.createGain();
+        shock2Osc.type = 'triangle';
+        shock2Osc.frequency.setValueAtTime(85, t2);
+        shock2Osc.frequency.exponentialRampToValueAtTime(18, t2 + 1.2);
+        shock2Gain.gain.setValueAtTime(0.65, t2);
+        shock2Gain.gain.exponentialRampToValueAtTime(0.001, t2 + 1.2);
+        shock2Osc.connect(shock2Gain);
+        shock2Gain.connect(this.cockpitFilter);
+        shock2Osc.start(t2);
+        shock2Osc.stop(t2 + 1.2);
+
+        // 3. Ground Rolling Sub-Bass Reverberation (36Hz)
+        const boomSub = this.ctx.createOscillator();
+        const boomSubGain = this.ctx.createGain();
+        boomSub.type = 'sine';
+        boomSub.frequency.setValueAtTime(38, now);
+        boomSub.frequency.exponentialRampToValueAtTime(14, now + 1.8);
+        boomSubGain.gain.setValueAtTime(0.70, now);
+        boomSubGain.gain.exponentialRampToValueAtTime(0.001, now + 1.8);
+        boomSub.connect(boomSubGain);
+        boomSubGain.connect(this.cockpitFilter);
+        boomSub.start(now);
+        boomSub.stop(now + 1.8);
       }
 
       playTargetExplosion() {
         if (!this.ctx) return;
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(110, this.ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(25, this.ctx.currentTime + 1.2);
-        gain.gain.setValueAtTime(0.45, this.ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 1.2);
-        osc.connect(gain);
-        gain.connect(this.cockpitFilter);
-        osc.start();
-        osc.stop(this.ctx.currentTime + 1.2);
+        const now = this.ctx.currentTime;
+
+        // 1. Supersonic High-Explosive Detonation Blast
+        const blastOsc = this.ctx.createOscillator();
+        const blastGain = this.ctx.createGain();
+        blastOsc.type = 'sawtooth';
+        blastOsc.frequency.setValueAtTime(220, now);
+        blastOsc.frequency.exponentialRampToValueAtTime(32, now + 0.85);
+        blastGain.gain.setValueAtTime(0.65, now);
+        blastGain.gain.exponentialRampToValueAtTime(0.001, now + 0.85);
+        blastOsc.connect(blastGain);
+        blastGain.connect(this.cockpitFilter);
+        blastOsc.start(now);
+        blastOsc.stop(now + 0.85);
+
+        // 2. Secondary Fuel-Air Fireball Sub-Bass (Deep 38Hz explosion thump)
+        const subOsc = this.ctx.createOscillator();
+        const subGain = this.ctx.createGain();
+        subOsc.type = 'triangle';
+        subOsc.frequency.setValueAtTime(75, now + 0.05);
+        subOsc.frequency.exponentialRampToValueAtTime(18, now + 2.0);
+        subGain.gain.setValueAtTime(0.55, now + 0.05);
+        subGain.gain.exponentialRampToValueAtTime(0.001, now + 2.0);
+        subOsc.connect(subGain);
+        subGain.connect(this.cockpitFilter);
+        subOsc.start(now + 0.05);
+        subOsc.stop(now + 2.0);
+      }
+
+      playTouchdown() {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+
+        // High-friction rubber tire contact screech on asphalt
+        const squealOsc = this.ctx.createOscillator();
+        const squealFilter = this.ctx.createBiquadFilter();
+        const squealGain = this.ctx.createGain();
+
+        squealOsc.type = 'sawtooth';
+        squealOsc.frequency.setValueAtTime(2400, now);
+        squealOsc.frequency.exponentialRampToValueAtTime(1300, now + 0.24);
+
+        squealFilter.type = 'bandpass';
+        squealFilter.frequency.value = 2100;
+        squealFilter.Q.value = 4.2;
+
+        squealGain.gain.setValueAtTime(0.28, now);
+        squealGain.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+
+        squealOsc.connect(squealFilter);
+        squealFilter.connect(squealGain);
+        squealGain.connect(this.cockpitFilter);
+        squealOsc.start(now);
+        squealOsc.stop(now + 0.24);
       }
 
       playSAMWarning() {
         if (!this.ctx) return;
         const now = this.ctx.currentTime;
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(1150, now);
-        osc.frequency.setValueAtTime(1550, now + 0.08);
-        gain.gain.setValueAtTime(0.18, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
-        osc.connect(gain);
-        gain.connect(this.cockpitFilter);
-        osc.start();
-        osc.stop(now + 0.16);
+
+        // AN/ASQ-239 Electronic Warfare Threat Warning (Urgent Dual-Tone Pulse)
+        for (let i = 0; i < 3; i++) {
+          const t = now + i * 0.065;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'square';
+          osc.frequency.setValueAtTime((i % 2 === 0) ? 1480 : 1850, t);
+
+          gain.gain.setValueAtTime(0.18, t);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.055);
+
+          osc.connect(gain);
+          gain.connect(this.masterGain);
+          osc.start(t);
+          osc.stop(t + 0.055);
+        }
       }
     }
 
@@ -3231,7 +3644,7 @@
           }
         }
 
-        sound.update(this.throttle, this.speedKnots);
+        sound.update(this.throttle, this.speedKnots, this.gForce, this.aoaDeg, this.onGround);
         this.aircraft.group.position.copy(this.position);
         this.aircraft.group.quaternion.copy(this.quaternion);
         this.aircraft.updateVisuals(this, dt);
