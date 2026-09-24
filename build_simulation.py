@@ -660,6 +660,9 @@ with open(output_path, "w", encoding="utf-8") as f:
         <button class="hud-btn" id="gear-toggle-btn" title="Toggle Landing Gear (G)">
           GEAR: UP
         </button>
+        <button class="hud-btn" id="pitch-mode-btn" title="Toggle Inverted Pitch / Flight Stick (I)">
+          PITCH: NORMAL
+        </button>
         <button class="hud-btn" id="gfx-toggle-btn" title="Toggle Ultra Post-Processing Graphics">
           GFX: ULTRA
         </button>
@@ -772,10 +775,10 @@ with open(output_path, "w", encoding="utf-8") as f:
       <div class="help-grid">
         <div class="help-column">
           <div class="help-group-title">Flight Controls (Fly-By-Wire)</div>
-          <div class="help-row"><span>Pitch Up (Stick Back)</span><span class="key-badge">S / Down</span></div>
-          <div class="help-row"><span>Pitch Down (Stick Fwd)</span><span class="key-badge">W / Up</span></div>
-          <div class="help-row"><span>Roll Left / Right</span><span class="key-badge">A / D / Left / Right</span></div>
-          <div class="help-row"><span>Rudder Yaw</span><span class="key-badge">Q / E</span></div>
+          <div class="help-row"><span>Pitch (Climb / Dive)</span><span class="key-badge">W / S or Up / Down</span></div>
+          <div class="help-row"><span>Toggle Pitch Invert</span><span class="key-badge">I</span></div>
+          <div class="help-row"><span>Roll & Turn (Left / Right)</span><span class="key-badge">A / D or Left / Right</span></div>
+          <div class="help-row"><span>Rudder Yaw (Left / Right)</span><span class="key-badge">Q / E</span></div>
           <div class="help-row"><span>Throttle Increase / AB</span><span class="key-badge">Shift</span></div>
           <div class="help-row"><span>Throttle Decrease / Idle</span><span class="key-badge">Ctrl / Z</span></div>
         </div>
@@ -1189,7 +1192,7 @@ with open(output_path, "w", encoding="utf-8") as f:
         ctx.clip();
 
         const euler = new THREE.Euler().setFromQuaternion(state.quaternion, 'YXZ');
-        ctx.rotate(-euler.z);
+        ctx.rotate(euler.z);
         const pitchY = euler.x * 120;
 
         ctx.fillStyle = '#0c3866';
@@ -1885,19 +1888,19 @@ with open(output_path, "w", encoding="utf-8") as f:
         const roll = physics.rollInput;
         const yaw = physics.yawInput;
 
-        // Differential Stabilators
-        if (this.leftStabilator) this.leftStabilator.rotation.x = pitch * 0.42 - roll * 0.22;
-        if (this.rightStabilator) this.rightStabilator.rotation.x = pitch * 0.42 + roll * 0.22;
+        // Differential Stabilators (aerodynamically correct: right wing up/left down when rolling right)
+        if (this.leftStabilator) this.leftStabilator.rotation.x = pitch * 0.42 + roll * 0.22;
+        if (this.rightStabilator) this.rightStabilator.rotation.x = pitch * 0.42 - roll * 0.22;
 
         // Flaperons (with STOL flap extension when gear is down)
         const stolFlap = physics.gearDown ? 0.45 : 0.0;
-        if (this.leftFlaperon) this.leftFlaperon.rotation.x = -pitch * 0.35 + roll * 0.45 + stolFlap;
-        if (this.rightFlaperon) this.rightFlaperon.rotation.x = -pitch * 0.35 - roll * 0.45 + stolFlap;
+        if (this.leftFlaperon) this.leftFlaperon.rotation.x = -pitch * 0.35 - roll * 0.45 + stolFlap;
+        if (this.rightFlaperon) this.rightFlaperon.rotation.x = -pitch * 0.35 + roll * 0.45 + stolFlap;
 
         // Rudders (with automatic toe-in airbrake during ground roll)
         const groundAirbrake = (physics.onGround && physics.speedKnots > 30) ? 0.35 : 0.0;
-        if (this.leftRudder) this.leftRudder.rotation.y = yaw * 0.40 - groundAirbrake;
-        if (this.rightRudder) this.rightRudder.rotation.y = yaw * 0.40 + groundAirbrake;
+        if (this.leftRudder) this.leftRudder.rotation.y = -yaw * 0.40 - groundAirbrake;
+        if (this.rightRudder) this.rightRudder.rotation.y = -yaw * 0.40 + groundAirbrake;
 
         // Drooping Slats (LEF) at high AoA
         const slatDroop = (physics.aoaDeg > 8.0) ? Math.min(0.5, (physics.aoaDeg - 8.0) * 0.04) : 0.0;
@@ -1907,7 +1910,7 @@ with open(output_path, "w", encoding="utf-8") as f:
         // Interactive HOTAS flight controls in cockpit
         if (this.hotasStick) {
           this.hotasStick.rotation.x = -pitch * 0.25;
-          this.hotasStick.rotation.z = -roll * 0.25;
+          this.hotasStick.rotation.z = roll * 0.25;
         }
         if (this.hotasThrottle) {
           this.hotasThrottle.position.z = 3.05 + (physics.throttle - 0.5) * 0.22;
@@ -2847,9 +2850,12 @@ with open(output_path, "w", encoding="utf-8") as f:
         const down = new THREE.Vector3(0, -1, 0).applyQuaternion(this.aircraft.group.quaternion);
 
         const missileMesh = this.aircraft.createAIM120Mesh();
-        missileMesh.rotation.y = Math.PI;
-        missileMesh.position.copy(jetPos).add(down.multiplyScalar(0.8));
-        missileMesh.quaternion.copy(this.aircraft.group.quaternion);
+        missileMesh.position.copy(jetPos).add(down.clone().multiplyScalar(0.8));
+        // Missile geometry has nose at +Z; rotate 180 deg around Y so it fires forward along -Z
+        const missileRot = this.aircraft.group.quaternion.clone().multiply(
+          new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI)
+        );
+        missileMesh.quaternion.copy(missileRot);
 
         this.missiles.push({
           mesh: missileMesh,
@@ -3153,9 +3159,14 @@ with open(output_path, "w", encoding="utf-8") as f:
         const yawRate = this.yawInput * 0.85 * dynamicPres;
         this.yawRate = yawRate;
 
-        // Rotational Integration
+        // Aerodynamic bank-to-turn FBW coordination
+        const rightVec = new THREE.Vector3(1, 0, 0).applyQuaternion(this.quaternion);
+        const bankSin = -rightVec.y; // Positive when banked right (right wing down)
+        const coordinatedYaw = bankSin * (9.81 / Math.max(35, speed)) * 1.35;
+
+        // Rotational Integration (Yaw inverted sign so Q=Left, E=Right; Roll banked turn tracks naturally)
         const deltaQuat = new THREE.Quaternion();
-        const euler = new THREE.Euler(pitchRate * dt, yawRate * dt, -rollRate * dt, 'YXZ');
+        const euler = new THREE.Euler(pitchRate * dt, -(yawRate + coordinatedYaw) * dt, -rollRate * dt, 'YXZ');
         deltaQuat.setFromEuler(euler);
         this.quaternion.multiply(deltaQuat);
 
@@ -3305,7 +3316,7 @@ with open(output_path, "w", encoding="utf-8") as f:
         ctx.translate(this.cx, hudCenterY);
         const euler = new THREE.Euler().setFromQuaternion(this.physics.quaternion, 'YXZ');
         const pitchDeg = euler.x * (180 / Math.PI);
-        ctx.rotate(-euler.z);
+        ctx.rotate(euler.z);
 
         const pixelsPerDeg = isMobile ? 7.0 : 9.0;
         const horizonY = pitchDeg * pixelsPerDeg;
@@ -3558,6 +3569,8 @@ with open(output_path, "w", encoding="utf-8") as f:
         this.domGfxBtn = document.getElementById('gfx-toggle-btn');
         this.domGearBtn = document.getElementById('gear-toggle-btn');
         this.domBayBtn = document.getElementById('bay-toggle-btn');
+        this.domPitchModeBtn = document.getElementById('pitch-mode-btn');
+        this.invertPitch = false; // Direct mode: W/Up = Pitch Up / Climb, S/Down = Pitch Down / Dive
 
         this.setupEventListeners();
         this.setupUI();
@@ -3621,6 +3634,7 @@ with open(output_path, "w", encoding="utf-8") as f:
           if (e.code === 'KeyB') this.toggleBay();
           if (e.code === 'KeyP') this.toggleBeastMode();
           if (e.code === 'KeyC') this.deployFlares();
+          if (e.code === 'KeyI') this.togglePitchInvert();
           if (e.code === 'Space') this.launchMissile();
           if (e.code === 'KeyR') this.resetAircraft();
           if (e.code === 'KeyH') this.toggleHelp();
@@ -3650,6 +3664,9 @@ with open(output_path, "w", encoding="utf-8") as f:
         this.domGfxBtn.addEventListener('click', () => this.toggleGraphics());
         this.domBayBtn.addEventListener('click', () => this.toggleBay());
         this.domGearBtn.addEventListener('click', () => this.toggleGear());
+        if (this.domPitchModeBtn) {
+          this.domPitchModeBtn.addEventListener('click', () => this.togglePitchInvert());
+        }
 
         this.domTimeBtn = document.getElementById('time-toggle-btn');
         if (this.domTimeBtn) {
@@ -3692,7 +3709,7 @@ with open(output_path, "w", encoding="utf-8") as f:
           }
           knob.style.transform = `translate(${dx}px, ${dy}px)`;
           this.touchRoll = dx / maxDist;
-          this.touchPitch = dy / maxDist; // Pull down = pitch up
+          this.touchPitch = this.invertPitch ? (dy / maxDist) : (-dy / maxDist);
         };
 
         stickZone.addEventListener('touchstart', (e) => {
@@ -3891,6 +3908,15 @@ with open(output_path, "w", encoding="utf-8") as f:
         this.domGearBtn.classList.toggle('active', this.physics.gearDown);
       }
 
+      togglePitchInvert() {
+        this.invertPitch = !this.invertPitch;
+        if (this.domPitchModeBtn) {
+          this.domPitchModeBtn.innerText = this.invertPitch ? 'PITCH: FLIGHT (W=DN)' : 'PITCH: NORMAL (W=UP)';
+          this.domPitchModeBtn.classList.toggle('active', this.invertPitch);
+        }
+        sound.speak(this.invertPitch ? 'Flight stick pitch enabled' : 'Direct pitch enabled');
+      }
+
       toggleBay() {
         this.physics.bayOpen = !this.physics.bayOpen;
         this.domBayBtn.innerText = this.physics.bayOpen ? 'BAY: OPEN' : 'BAY: CLOSED';
@@ -3984,9 +4010,12 @@ with open(output_path, "w", encoding="utf-8") as f:
       }
 
       handleInputs(dt) {
-        let pitch = this.touchPitch;
-        if (this.keys['KeyS'] || this.keys['ArrowDown']) pitch += 1.0;
-        if (this.keys['KeyW'] || this.keys['ArrowUp']) pitch -= 1.0;
+        let keyPitch = 0;
+        if (this.keys['KeyW'] || this.keys['ArrowUp']) keyPitch += 1.0;
+        if (this.keys['KeyS'] || this.keys['ArrowDown']) keyPitch -= 1.0;
+        if (this.invertPitch) keyPitch = -keyPitch; // Flight stick mode: W/Up = dive, S/Down = climb
+
+        let pitch = this.touchPitch + keyPitch;
         this.physics.pitchInput = Math.max(-1.0, Math.min(1.0, pitch));
 
         let roll = this.touchRoll;
@@ -4018,23 +4047,31 @@ with open(output_path, "w", encoding="utf-8") as f:
         const up = new THREE.Vector3(0, 1, 0).applyQuaternion(this.physics.quaternion);
 
         if (this.cameraMode === 0) {
-          // Chase Cam
+          // Chase Cam (Aligned directly behind jet along world vertical axis, preventing horizontal drift)
           const chaseDist = 13.5 + (this.physics.speedKnots / 700) * 5;
-          const chaseHeight = 2.6 + Math.abs(this.physics.pitchInput) * 1.0;
+          const chaseHeight = 2.6 + Math.abs(this.physics.pitchInput) * 0.8;
+          const worldUp = new THREE.Vector3(0, 1, 0);
+
           const targetCamPos = jetPos.clone()
             .sub(forward.clone().multiplyScalar(chaseDist))
-            .add(up.clone().multiplyScalar(chaseHeight));
+            .add(worldUp.clone().multiplyScalar(chaseHeight));
 
           this.camera.position.lerp(targetCamPos, 0.16);
-          const lookTarget = jetPos.clone().add(forward.clone().multiplyScalar(30)).add(up.clone().multiplyScalar(0.6));
+
+          // Subtle 25% bank alignment with aircraft for authentic flight feel
+          const bankUp = worldUp.clone().lerp(up, 0.25).normalize();
+          this.camera.up.copy(bankUp);
+
+          const lookTarget = jetPos.clone().add(forward.clone().multiplyScalar(30)).add(worldUp.clone().multiplyScalar(0.6));
           this.camera.lookAt(lookTarget);
 
         } else if (this.cameraMode === 1) {
-          // Cockpit / HMDS Cam
+          // Cockpit / HMDS Cam (Rolls with aircraft)
           const cockpitPos = jetPos.clone()
             .add(up.clone().multiplyScalar(1.02))
             .add(forward.clone().multiplyScalar(4.0));
           this.camera.position.copy(cockpitPos);
+          this.camera.up.copy(up);
           const lookTarget = cockpitPos.clone().add(forward.clone().multiplyScalar(200)).add(up.clone().multiplyScalar(-0.02));
           this.camera.lookAt(lookTarget);
 
@@ -4116,4 +4153,3 @@ with open(output_path, "w", encoding="utf-8") as f:
 </body>
 </html>
 ''')
-print("Successfully compiled index.html")
