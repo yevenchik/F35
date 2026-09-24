@@ -1011,12 +1011,83 @@ with open(output_path, "w", encoding="utf-8") as f:
       box-shadow: 0 0 10px rgba(0, 255, 119, 0.3);
     }
 
+
+    /* DAS / FLIR THERMAL NIGHT VISION OVERLAY */
+    #das-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 4;
+      pointer-events: none;
+      display: none;
+      background: radial-gradient(circle at center, rgba(0, 255, 119, 0.08) 0%, rgba(2, 28, 14, 0.45) 85%);
+      box-shadow: inset 0 0 120px rgba(0, 255, 119, 0.25);
+    }
+
+    #das-overlay.active {
+      display: block;
+    }
+
+    .das-scanlines {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(rgba(0, 255, 119, 0) 50%, rgba(0, 0, 0, 0.35) 50%);
+      background-size: 100% 4px;
+      opacity: 0.45;
+    }
+
+    .das-status-badge {
+      position: absolute;
+      top: 68px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: #00ffaa;
+      background: rgba(4, 24, 14, 0.85);
+      border: 1px solid #00ff77;
+      padding: 3px 14px;
+      border-radius: 4px;
+      box-shadow: 0 0 15px rgba(0, 255, 119, 0.4);
+    }
+
+    .carrier-hud-banner {
+      position: absolute;
+      top: 35%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 2.5px;
+      color: #00ffaa;
+      background: rgba(4, 18, 28, 0.92);
+      border: 2px solid #00e5ff;
+      padding: 8px 24px;
+      border-radius: 6px;
+      box-shadow: 0 0 25px rgba(0, 229, 255, 0.5);
+      display: none;
+      z-index: 15;
+    }
+
   </style>
 </head>
 <body>
   <canvas id="webgl-canvas"></canvas>
   <canvas id="hud-canvas"></canvas>
   <div id="g-overlay"></div>
+  <div id="das-overlay">
+    <div class="das-scanlines"></div>
+    <div class="das-status-badge">AN/AAQ-37 DAS [360° SPHERICAL FLIR THERMAL ACTIVE]</div>
+  </div>
+  <div id="carrier-banner" class="carrier-hud-banner">EMALS CATAPULT READY // HOLD BRAKES & PRESS (C)</div>
   <div id="master-warning">WARNING: PULL UP</div>
   <div id="crash-modal" class="interactive">
     <div class="crash-header">
@@ -1073,6 +1144,12 @@ with open(output_path, "w", encoding="utf-8") as f:
         </button>
         <button class="hud-btn" id="gear-toggle-btn" title="Toggle Landing Gear (G)">
           GEAR: UP
+        </button>
+        <button class="hud-btn" id="hook-toggle-btn" title="Toggle Carrier Arresting Tailhook (H)">
+          HOOK: UP
+        </button>
+        <button class="hud-btn" id="das-toggle-btn" title="Toggle DAS See-Through Cockpit FLIR (N)">
+          DAS: OFF
         </button>
         <button class="hud-btn" id="pitch-mode-btn" title="Toggle Inverted Pitch / Flight Stick (I)">
           PITCH: NORMAL
@@ -1719,6 +1796,74 @@ with open(output_path, "w", encoding="utf-8") as f:
           const avionicsVol = muffled ? 0.030 : 0.0;
           this.avionicsGain.gain.setTargetAtTime(avionicsVol, now, 0.15);
         }
+      }
+
+      playMicClick() {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const buffer = this.ctx.createBuffer(1, Math.floor(this.ctx.sampleRate * 0.028), this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * 0.85;
+        const source = this.ctx.createBufferSource();
+        source.buffer = buffer;
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.value = 1850;
+        filter.Q.value = 2.2;
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.22, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.028);
+        source.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.masterGain);
+        source.start(now);
+      }
+
+      playWireArrest() {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        // Heavy steel cable tension screech & deck groan
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(480, now);
+        osc.frequency.exponentialRampToValueAtTime(95, now + 0.85);
+        gain.gain.setValueAtTime(0.35, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.85);
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+        osc.start(now);
+        osc.stop(now + 0.85);
+      }
+
+      playTacticalRadioCallout(type) {
+        this.playMicClick();
+        if (!('speechSynthesis' in window)) return;
+        const phrases = {
+          'FOX_THREE': 'Viper 1-1, Fox Three! Pitbull active!',
+          'FOX_TWO': 'Fox Two, kill in the basket!',
+          'GUNS': 'Guns, guns, guns!',
+          'SPLASH': 'Splash one hostile! Good hit!',
+          'SPIKE': 'Warning, radar spike! Break right, flares!',
+          'CATAPULT': 'Viper 1-1, cleared hot off the cat!',
+          'TRAP': 'Three wire! Trap complete, pull back power.',
+          'HOOK_DOWN': 'Arresting hook down.',
+          'HOOK_UP': 'Arresting hook stowed.',
+          'DAS_ON': 'DAS spherical thermal vision engaged.',
+          'DAS_OFF': 'Standard daylight optics restored.'
+        };
+        const phrase = phrases[type] || type;
+        setTimeout(() => {
+          try {
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(phrase);
+            utterance.rate = 1.22;
+            utterance.pitch = 0.95;
+            utterance.volume = 0.95;
+            utterance.onend = () => { this.playRadioSquelch(); };
+            window.speechSynthesis.speak(utterance);
+          } catch (e) {}
+        }, 35);
       }
 
       playRadioSquelch() {
@@ -3389,6 +3534,43 @@ with open(output_path, "w", encoding="utf-8") as f:
         this.rightLexVortex.position.set(1.05, 0.15, -7.2);
         m.add(this.rightLexVortex);
 
+        // High-G Wing-Surface Condensation Moisture Sheets
+        const wingSheetGeo = new THREE.PlaneGeometry(3.8, 2.6).rotateX(-Math.PI / 2);
+        const wingSheetMat = new THREE.MeshBasicMaterial({
+          color: 0xffffff,
+          transparent: true,
+          opacity: 0.0,
+          depthWrite: false,
+          side: THREE.DoubleSide
+        });
+        this.leftWingVaporSheet = new THREE.Mesh(wingSheetGeo, wingSheetMat);
+        this.leftWingVaporSheet.position.set(-2.8, 0.28, -0.6);
+        m.add(this.leftWingVaporSheet);
+
+        this.rightWingVaporSheet = new THREE.Mesh(wingSheetGeo, wingSheetMat.clone());
+        this.rightWingVaporSheet.position.set(2.8, 0.28, -0.6);
+        m.add(this.rightWingVaporSheet);
+
+        // Carrier Arresting Tailhook
+        this.tailhookGroup = new THREE.Group();
+        this.tailhookGroup.position.set(0, 0.08, -3.8);
+        const hookShaft = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.045, 0.045, 1.8, 8),
+          new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.8, roughness: 0.3 })
+        );
+        hookShaft.position.set(0, 0, -0.9);
+        hookShaft.rotation.x = Math.PI / 2;
+        this.tailhookGroup.add(hookShaft);
+
+        const hookTip = new THREE.Mesh(
+          new THREE.TorusGeometry(0.09, 0.03, 6, 8, Math.PI),
+          new THREE.MeshStandardMaterial({ color: 0x555555, metalness: 0.9, roughness: 0.2 })
+        );
+        hookTip.position.set(0, -0.06, -1.8);
+        hookTip.rotation.y = Math.PI / 2;
+        this.tailhookGroup.add(hookTip);
+        m.add(this.tailhookGroup);
+
         // Outboard Wingtip Vortex Ribbons (High-G Turns)
         const vortexGeo = new THREE.CylinderGeometry(0.035, 0.14, 18, 8);
         vortexGeo.rotateX(Math.PI / 2);
@@ -3563,6 +3745,18 @@ with open(output_path, "w", encoding="utf-8") as f:
         this.landingGearGroup.add(mainGearR);
 
         this.landingGearGroup.visible = false;
+      }
+
+      setDASMode(active) {
+        this.isDASActive = active;
+        if (this.bodyMaterial) {
+          this.bodyMaterial.transparent = active;
+          this.bodyMaterial.opacity = active ? 0.22 : 1.0;
+        }
+        if (this.darkAccentMaterial) {
+          this.darkAccentMaterial.transparent = active;
+          this.darkAccentMaterial.opacity = active ? 0.22 : 1.0;
+        }
       }
 
       toggleBeastMode() {
@@ -4450,9 +4644,50 @@ with open(output_path, "w", encoding="utf-8") as f:
         // Surface-to-Air Missile (SAM) Threat Battery
         this.samSitePos = new THREE.Vector3(1200, 225, -3200);
         this.samMissiles = [];
-        this.samCooldown = 0;
+        this.samCooldown = 6.0;
         this.samLockTimer = 0;
         this.samAlertActive = false;
+        this.samSmokePuffs = [];
+
+        // SAM visual shared assets
+        this.samMissileGeo = new THREE.CylinderGeometry(0.24, 0.24, 4.2, 8).rotateX(Math.PI / 2);
+        this.samMissileMat = new THREE.MeshStandardMaterial({ color: 0xdddddd, metalness: 0.6, roughness: 0.3 });
+        this.samSmokeGeo = new THREE.SphereGeometry(2.2, 6, 6);
+        this.samSmokeMat = new THREE.MeshBasicMaterial({ color: 0xcccccc, transparent: true, opacity: 0.65 });
+      }
+
+      launchSAM() {
+        const group = new THREE.Group();
+        const body = new THREE.Mesh(this.samMissileGeo, this.samMissileMat);
+        group.add(body);
+
+        // Booster Flame
+        const flame = new THREE.Mesh(
+          new THREE.ConeGeometry(0.35, 2.2, 6).rotateX(-Math.PI / 2),
+          new THREE.MeshBasicMaterial({ color: 0xff6600 })
+        );
+        flame.position.z = 2.4;
+        group.add(flame);
+
+        // Point Light
+        const light = new THREE.PointLight(0xff6600, 2.5, 60);
+        light.position.z = 2.4;
+        group.add(light);
+
+        group.position.copy(this.samSitePos).add(new THREE.Vector3(0, 15, 0));
+        this.scene.add(group);
+
+        this.samMissiles.push({
+          mesh: group,
+          velocity: new THREE.Vector3(0, 120, 0),
+          forward: new THREE.Vector3(0, 1, 0),
+          speed: 260,
+          age: 0,
+          maxAge: 12.0,
+          corkscrewPhase: Math.random() * Math.PI * 2,
+          puffTimer: 0,
+          isDecoyed: false
+        });
       }
 
       createSu57Mesh() {
@@ -4788,6 +5023,94 @@ with open(output_path, "w", encoding="utf-8") as f:
           }
         }
 
+        // Coastal SAM Threat Battery Tracking & Launch Loop
+        if (this.aircraft && this.aircraft.group) {
+          const distToSam = this.samSitePos.distanceTo(this.aircraft.group.position);
+          const acAlt = this.aircraft.group.position.y;
+          if (distToSam < 6500 && acAlt > 60 && !this.aircraft.physics.isCrashed) {
+            this.samCooldown -= dt;
+            if (this.samCooldown <= 0) {
+              this.samLockTimer += dt;
+              if (this.samLockTimer > 3.0) {
+                sound.playTacticalRadioCallout('SPIKE');
+                this.launchSAM();
+                this.samCooldown = 20.0; // 20s between battery salvos
+                this.samLockTimer = 0;
+              }
+            }
+          } else {
+            this.samLockTimer = Math.max(0, this.samLockTimer - dt);
+          }
+        }
+
+        // SAM Missiles Corkscrew Guidance & Flare Evasion Update
+        for (let i = this.samMissiles.length - 1; i >= 0; i--) {
+          const sam = this.samMissiles[i];
+          sam.age += dt;
+          sam.speed = Math.min(620, sam.speed + 175 * dt); // Accelerate to Mach 2+
+
+          // Countermeasure Flare Evasion Check
+          let targetPoint = this.aircraft.group.position.clone();
+          if (this.flares.length > 0 && this.aircraft.physics.throttle < 0.70) {
+            // Engine cooled below reheat & active magnesium flares: SAM seeker decoyed!
+            sam.isDecoyed = true;
+            targetPoint = this.flares[0].mesh.position.clone();
+          }
+
+          // Proportional Navigation Guidance
+          const toTarget = targetPoint.clone().sub(sam.mesh.position).normalize();
+          sam.forward.lerp(toTarget, 4.2 * dt).normalize();
+
+          // Helical Corkscrew Aerodynamic Oscillation
+          sam.corkscrewPhase += 15.0 * dt;
+          const upVec = new THREE.Vector3(0, 1, 0);
+          const rightVec = new THREE.Vector3().crossVectors(sam.forward, upVec).normalize();
+          const corkNormal = new THREE.Vector3().crossVectors(rightVec, sam.forward).normalize();
+          const corkOffset = rightVec.clone().multiplyScalar(Math.cos(sam.corkscrewPhase) * 14.0)
+            .add(corkNormal.clone().multiplyScalar(Math.sin(sam.corkscrewPhase) * 14.0));
+
+          sam.velocity.copy(sam.forward).multiplyScalar(sam.speed);
+          sam.mesh.position.addScaledVector(sam.velocity, dt).addScaledVector(corkOffset, dt);
+          sam.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), sam.forward);
+
+          // Corkscrew Smoke Plume Generation
+          sam.puffTimer += dt;
+          if (sam.puffTimer > 0.035) {
+            sam.puffTimer = 0;
+            const puff = new THREE.Mesh(this.samSmokeGeo, this.samSmokeMat.clone());
+            puff.position.copy(sam.mesh.position);
+            puff.scale.setScalar(0.7 + Math.random() * 0.4);
+            this.scene.add(puff);
+            this.samSmokePuffs.push({ mesh: puff, age: 0, maxAge: 3.6 });
+          }
+
+          // Intercept & Proximity Fuze Detonation
+          const distToAc = sam.mesh.position.distanceTo(this.aircraft.group.position);
+          const distToDecoy = targetPoint.distanceTo(sam.mesh.position);
+
+          if ((sam.isDecoyed && distToDecoy < 20) || distToAc < 18 || sam.mesh.position.y <= 0 || sam.age >= sam.maxAge) {
+            this.createMultiStageExplosion(sam.mesh.position);
+            if (distToAc < 22 && !sam.isDecoyed) {
+              // Close-call flak shockwave
+              this.aircraft.physics.gForce += 3.5;
+            }
+            this.scene.remove(sam.mesh);
+            this.samMissiles.splice(i, 1);
+          }
+        }
+
+        // Lingering Corkscrew Smoke Puffs Animation
+        for (let i = this.samSmokePuffs.length - 1; i >= 0; i--) {
+          const puff = this.samSmokePuffs[i];
+          puff.age += dt;
+          puff.mesh.scale.addScalar(2.4 * dt);
+          puff.mesh.material.opacity = Math.max(0, 0.65 - (puff.age / puff.maxAge) * 0.65);
+          if (puff.age >= puff.maxAge) {
+            this.scene.remove(puff.mesh);
+            this.samSmokePuffs.splice(i, 1);
+          }
+        }
+
         // Water geysers animation
         for (let i = this.waterGeysers.length - 1; i >= 0; i--) {
           const wg = this.waterGeysers[i];
@@ -4844,9 +5167,19 @@ with open(output_path, "w", encoding="utf-8") as f:
         this.fbwAoALimiter = true;
         this.isCrashed = false;
         this.app = null;
+        this.tailhookDown = false;
+        this.catapultArmed = false;
+        this.catapultFiring = false;
+        this.catapultTimer = 0;
+        this.isCarrierTrapped = false;
       }
 
       reset() {
+        this.tailhookDown = false;
+        this.catapultArmed = false;
+        this.catapultFiring = false;
+        this.catapultTimer = 0;
+        this.isCarrierTrapped = false;
         this.position.set(0, 1600, 2800);
         this.quaternion.set(0, 0, 0, 1);
         this.velocity.set(0, 0, -235);
@@ -4985,6 +5318,77 @@ with open(output_path, "w", encoding="utf-8") as f:
         // Load factor (G-Force)
         const aeroNormal = liftForce.clone().add(thrustForce).dot(up) / (mass * 9.81);
         this.gForce = (speed > 30) ? aeroNormal : 1.0;
+
+        // Precision Carrier Flight Deck Interaction (CVN Supercarrier at 6500, 5, 7500, heading ~031.5°)
+        const cdx = this.position.x - 6500;
+        const cdz = this.position.z - 7500;
+        const cCos = Math.cos(-0.55);
+        const cSin = Math.sin(-0.55);
+        const cLocalX = cdx * cCos - cdz * cSin;
+        const cLocalZ = cdx * cSin + cdz * cCos;
+        const isOverCarrier = (Math.abs(cLocalX) < 78) && (Math.abs(cLocalZ) < 390);
+
+        if (isOverCarrier && this.position.y <= 55.0 && this.position.y >= 49.5) {
+          // Solid flight deck surface touchdown at 54.0m MSL
+          if (this.gearDown) {
+            this.position.y = 54.0;
+            this.velocity.y = 0;
+            this.onGround = true;
+
+            // 3-Wire Arresting Trap Recovery
+            if (this.tailhookDown && this.speedKnots > 45 && !this.isCarrierTrapped) {
+              this.isCarrierTrapped = true;
+              this.speedKnots = Math.max(0, this.speedKnots - 165 * dt);
+              this.velocity.multiplyScalar(0.35);
+              sound.playWireArrest();
+              sound.playTacticalRadioCallout('TRAP');
+              const targetBanner = document.getElementById('target-destroyed-banner');
+              if (targetBanner) {
+                targetBanner.innerText = 'TRAP OK // #3 ARRESTING WIRE ENGAGED';
+                targetBanner.style.display = 'block';
+                setTimeout(() => { targetBanner.style.display = 'none'; }, 3200);
+              }
+            } else if (this.isCarrierTrapped) {
+              this.speedKnots = Math.max(0, this.speedKnots - 120 * dt);
+              this.velocity.multiplyScalar(0.70);
+            }
+
+            // EMALS Catapult Shuttle Hookup on Carrier Bow
+            if (cLocalZ < -80 && this.speedKnots < 25 && !this.catapultFiring) {
+              this.catapultArmed = true;
+              const carrierBanner = document.getElementById('carrier-banner');
+              if (carrierBanner) carrierBanner.style.display = 'block';
+            } else if (!this.catapultFiring) {
+              this.catapultArmed = false;
+              const carrierBanner = document.getElementById('carrier-banner');
+              if (carrierBanner) carrierBanner.style.display = 'none';
+            }
+
+            if (this.catapultFiring) {
+              this.catapultTimer += dt;
+              this.throttle = 1.30; // Max reheat afterburner
+              this.speedKnots = Math.min(175, this.speedKnots + 135 * dt);
+              const bowDir = new THREE.Vector3(-Math.sin(0.55), 0, -Math.cos(0.55));
+              this.velocity.copy(bowDir.multiplyScalar(this.speedKnots * 0.514444));
+              if (this.catapultTimer > 1.85 || this.speedKnots >= 165 || cLocalZ < -360) {
+                this.catapultFiring = false;
+                this.catapultArmed = false;
+                this.catapultTimer = 0;
+                this.velocity.y = 12.0; // Positive climb rate off bow
+                const carrierBanner = document.getElementById('carrier-banner');
+                if (carrierBanner) carrierBanner.style.display = 'none';
+                sound.playTacticalRadioCallout('CATAPULT');
+              }
+            }
+          }
+        } else {
+          this.isCarrierTrapped = false;
+          if (!this.catapultFiring) {
+            this.catapultArmed = false;
+            const carrierBanner = document.getElementById('carrier-banner');
+            if (carrierBanner) carrierBanner.style.display = 'none';
+          }
+        }
 
         // Ground collision & Runway Roll-Out
         this.onGround = false;
@@ -5385,6 +5789,8 @@ with open(output_path, "w", encoding="utf-8") as f:
         this.physics = new FlightPhysics(this.aircraft);
         this.physics.app = this;
         this.combat = new CombatSystem(this.scene, this.aircraft, this.environment);
+        this.aircraft.physics = this.physics;
+        this.combat.physics = this.physics;
         this.hud = new HUDDisplay('hud-canvas', this.physics, this.environment, this.combat);
         this.tacticalMap = new TacticalMovingMap(this);
 
@@ -5485,12 +5891,20 @@ with open(output_path, "w", encoding="utf-8") as f:
           if (e.code === 'KeyG') this.toggleGear();
           if (e.code === 'KeyB') this.toggleBay();
           if (e.code === 'KeyP') this.toggleBeastMode();
-          if (e.code === 'KeyC') this.deployFlares();
+          if (e.code === 'KeyC') {
+            if (this.physics && this.physics.catapultArmed) {
+              this.triggerCatapultLaunch();
+            } else {
+              this.deployFlares();
+            }
+          }
+          if (e.code === 'KeyH') this.toggleTailhook();
+          if (e.code === 'KeyN') this.toggleDAS();
           if (e.code === 'KeyI') this.togglePitchInvert();
           if (e.code === 'KeyO') this.toggleAutoGCAS();
           if (e.code === 'Space') this.launchMissile();
           if (e.code === 'KeyR') this.resetAircraft();
-          if (e.code === 'KeyH') this.toggleHelp();
+          if (e.code === 'Slash' || e.code === 'KeyK') this.toggleHelp();
           if (e.code === 'KeyM') this.toggleTacticalMap();
           if (e.code === 'KeyT') this.toggleTheaterModal();
           if (e.code === 'KeyU') this.toggleAudio();
@@ -5519,6 +5933,14 @@ with open(output_path, "w", encoding="utf-8") as f:
         this.domGfxBtn.addEventListener('click', () => this.toggleGraphics());
         this.domBayBtn.addEventListener('click', () => this.toggleBay());
         this.domGearBtn.addEventListener('click', () => this.toggleGear());
+        const dasToggleBtn = document.getElementById('das-toggle-btn');
+        if (dasToggleBtn) {
+          dasToggleBtn.addEventListener('click', () => this.toggleDAS());
+        }
+        const hookToggleBtn = document.getElementById('hook-toggle-btn');
+        if (hookToggleBtn) {
+          hookToggleBtn.addEventListener('click', () => this.toggleTailhook());
+        }
         const gcasBtn = document.getElementById('gcas-toggle-btn');
         if (gcasBtn) {
           gcasBtn.addEventListener('click', () => this.toggleAutoGCAS());
@@ -5716,6 +6138,39 @@ with open(output_path, "w", encoding="utf-8") as f:
         }
       }
 
+      toggleDAS() {
+        this.dasActive = !this.dasActive;
+        const dasOverlay = document.getElementById('das-overlay');
+        if (dasOverlay) dasOverlay.classList.toggle('active', this.dasActive);
+        const dasBtn = document.getElementById('das-toggle-btn');
+        if (dasBtn) {
+          dasBtn.innerText = this.dasActive ? 'DAS: FLIR' : 'DAS: OFF';
+          dasBtn.classList.toggle('active', this.dasActive);
+        }
+        if (this.aircraft) {
+          this.aircraft.setDASMode(this.dasActive);
+        }
+        sound.playTacticalRadioCallout(this.dasActive ? 'DAS_ON' : 'DAS_OFF');
+      }
+
+      toggleTailhook() {
+        this.physics.tailhookDown = !this.physics.tailhookDown;
+        const hookBtn = document.getElementById('hook-toggle-btn');
+        if (hookBtn) {
+          hookBtn.innerText = this.physics.tailhookDown ? 'HOOK: DOWN' : 'HOOK: UP';
+          hookBtn.classList.toggle('active', this.physics.tailhookDown);
+        }
+        sound.playTacticalRadioCallout(this.physics.tailhookDown ? 'HOOK_DOWN' : 'HOOK_UP');
+      }
+
+      triggerCatapultLaunch() {
+        if (this.physics && this.physics.catapultArmed && !this.physics.catapultFiring) {
+          this.physics.catapultFiring = true;
+          this.physics.catapultTimer = 0;
+          sound.playRadioSquelch();
+        }
+      }
+
       toggleTacticalMap() {
         if (this.tacticalMap) {
           this.tacticalMap.togglePortal();
@@ -5802,6 +6257,18 @@ with open(output_path, "w", encoding="utf-8") as f:
           sound.ctx.suspend();
           this.domAudioBtn.innerHTML = '<span>&#128263;</span> SOUND: OFF';
           this.domAudioBtn.classList.remove('active');
+        }
+      }
+
+      setDASMode(active) {
+        this.isDASActive = active;
+        if (this.bodyMaterial) {
+          this.bodyMaterial.transparent = active;
+          this.bodyMaterial.opacity = active ? 0.22 : 1.0;
+        }
+        if (this.darkAccentMaterial) {
+          this.darkAccentMaterial.transparent = active;
+          this.darkAccentMaterial.opacity = active ? 0.22 : 1.0;
         }
       }
 
@@ -5893,6 +6360,7 @@ with open(output_path, "w", encoding="utf-8") as f:
 
       fireGun() {
         if (this.gunCooldown <= 0 && this.physics.ammo > 0) {
+          if (Math.random() < 0.25) sound.playTacticalRadioCallout('GUNS');
           this.combat.fireGun();
           this.physics.ammo--;
           this.gunCooldown = 0.05;
@@ -5907,6 +6375,7 @@ with open(output_path, "w", encoding="utf-8") as f:
           this.domMissiles.innerText = this.physics.missilesLeft;
           this.physics.bayOpen = true;
 
+          sound.playTacticalRadioCallout('FOX_THREE');
           setTimeout(() => {
             this.combat.launchMissile();
             setTimeout(() => {
