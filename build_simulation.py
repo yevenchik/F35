@@ -513,6 +513,122 @@ with open(output_path, "w", encoding="utf-8") as f:
       to { opacity: 1; transform: translateX(-50%) scale(1.04); }
     }
 
+    /* AAA Crash Debrief Modal */
+    #crash-modal {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.9);
+      background: rgba(12, 16, 22, 0.94);
+      border: 2px solid #ff2233;
+      border-radius: 12px;
+      padding: 24px 32px;
+      box-shadow: 0 0 50px rgba(255, 34, 51, 0.6), inset 0 0 30px rgba(255, 34, 51, 0.15);
+      backdrop-filter: blur(16px);
+      z-index: 100;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      min-width: 360px;
+      max-width: 90vw;
+      color: #fff;
+      animation: crashModalIn 0.35s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards;
+    }
+
+    @keyframes crashModalIn {
+      from { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+      to { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
+    }
+
+    .crash-header {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      text-align: center;
+    }
+
+    .crash-icon {
+      font-size: 36px;
+      color: #ff3344;
+      filter: drop-shadow(0 0 14px #ff2233);
+      animation: alertBlink 0.6s infinite alternate ease-in-out;
+    }
+
+    .crash-title {
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: 3px;
+      color: #ff3344;
+      text-shadow: 0 0 16px rgba(255, 51, 68, 0.8);
+    }
+
+    .crash-subtitle {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 11px;
+      color: #ffaaaa;
+      letter-spacing: 2px;
+    }
+
+    .crash-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px 16px;
+      width: 100%;
+      background: rgba(0, 0, 0, 0.45);
+      border: 1px solid rgba(255, 51, 68, 0.35);
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-family: 'Share Tech Mono', monospace;
+    }
+
+    .crash-stat {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .crash-stat.full {
+      grid-column: span 2;
+    }
+
+    .c-label {
+      font-size: 10px;
+      color: #8899aa;
+      letter-spacing: 1px;
+    }
+
+    .c-val {
+      font-size: 15px;
+      font-weight: 700;
+      color: #ffeedd;
+    }
+
+    .crash-respawn-pulse {
+      background: linear-gradient(135deg, #ff2233 0%, #b3001b 100%);
+      border: 1px solid #ff6677;
+      color: #ffffff;
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      padding: 12px 32px;
+      border-radius: 8px;
+      cursor: pointer;
+      box-shadow: 0 0 25px rgba(255, 34, 51, 0.7);
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .crash-respawn-pulse:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 35px rgba(255, 34, 51, 1.0);
+    }
+
     .modal-overlay {
       position: absolute;
       top: 0;
@@ -627,6 +743,23 @@ with open(output_path, "w", encoding="utf-8") as f:
   <canvas id="hud-canvas"></canvas>
   <div id="g-overlay"></div>
   <div id="master-warning">WARNING: PULL UP</div>
+  <div id="crash-modal" class="interactive">
+    <div class="crash-header">
+      <span class="crash-icon">&#9888;</span>
+      <div class="crash-title">AIRCRAFT DESTROYED</div>
+      <div class="crash-subtitle">CATASTROPHIC IMPACT RECORDED</div>
+    </div>
+    <div class="crash-grid">
+      <div class="crash-stat"><span class="c-label">IMPACT SPEED</span><span class="c-val" id="crash-speed">0 KTS</span></div>
+      <div class="crash-stat"><span class="c-label">MACH NUMBER</span><span class="c-val" id="crash-mach">M 0.00</span></div>
+      <div class="crash-stat"><span class="c-label">IMPACT PITCH</span><span class="c-val" id="crash-pitch">0°</span></div>
+      <div class="crash-stat"><span class="c-label">PEAK G-FORCE</span><span class="c-val" id="crash-g">0.0 G</span></div>
+      <div class="crash-stat full"><span class="c-label">IMPACT ZONE</span><span class="c-val" id="crash-zone">OCEAN DITCHING</span></div>
+    </div>
+    <button id="crash-respawn-btn" class="crash-respawn-pulse">
+      <span>&#8635;</span> RESPAWN FLIGHT (R)
+    </button>
+  </div>
   <div id="target-destroyed-banner">TARGET DESTROYED +100 PTS</div>
 
   <div id="landscape-hint" class="landscape-hint">
@@ -3650,6 +3783,8 @@ with open(output_path, "w", encoding="utf-8") as f:
         this.autoGcasTimer = 0;
         this.fbwGLimiter = true;
         this.fbwAoALimiter = true;
+        this.isCrashed = false;
+        this.app = null;
       }
 
       reset() {
@@ -3665,9 +3800,14 @@ with open(output_path, "w", encoding="utf-8") as f:
         this.flaresLeft = 24;
         this.autoGcasActive = false;
         this.autoGcasTimer = 0;
+        this.isCrashed = false;
       }
 
       update(dt) {
+        if (this.isCrashed) {
+          sound.update(0, 0, 0, 0, true);
+          return;
+        }
         const speed = this.velocity.length();
         this.speedKnots = speed * 1.94384;
         this.mach = this.speedKnots / 661.47;
@@ -3798,10 +3938,15 @@ with open(output_path, "w", encoding="utf-8") as f:
             this.onGround = true;
           } else {
             // Crash into terrain / water
-            this.position.y = 36.0;
-            this.velocity.set(0, 0, 0);
-            document.getElementById('master-warning').innerText = "CRASH - PRESS (R) TO RESPAWN";
-            document.getElementById('master-warning').style.display = "block";
+            if (!this.isCrashed) {
+              this.isCrashed = true;
+              this.position.y = 36.0;
+              const impactVel = this.velocity.clone();
+              this.velocity.set(0, 0, 0);
+              if (this.app) {
+                this.app.handleAircraftCrash(impactVel, speed);
+              }
+            }
           }
         }
 
@@ -3856,6 +4001,34 @@ with open(output_path, "w", encoding="utf-8") as f:
         ctx.clearRect(0, 0, this.width, this.height);
 
         if (cameraMode === 3) {
+          ctx.restore();
+          return;
+        }
+
+        if (this.physics.isCrashed) {
+          // Render Electrical Failure Static Lines & Glitch
+          ctx.fillStyle = 'rgba(255, 30, 30, 0.35)';
+          for (let s = 0; s < 14; s++) {
+            const sy = Math.random() * this.height;
+            const sh = Math.random() * 8 + 2;
+            ctx.fillRect(0, sy, this.width, sh);
+          }
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+          for (let s = 0; s < 8; s++) {
+            const sy = Math.random() * this.height;
+            const sh = Math.random() * 3 + 1;
+            ctx.fillRect(0, sy, this.width, sh);
+          }
+          ctx.save();
+          ctx.font = 'bold 22px "Share Tech Mono", monospace';
+          ctx.fillStyle = '#ff2233';
+          ctx.shadowColor = '#ff2233';
+          ctx.shadowBlur = 16;
+          ctx.fillText('CRITICAL IMPACT - SENSORS OFFLINE', this.cx - 210, this.cy - 20);
+          ctx.font = '14px "Share Tech Mono", monospace';
+          ctx.fillStyle = '#ffccbb';
+          ctx.fillText('CATASTROPHIC AIRFRAME BREAKUP - EJECTED', this.cx - 165, this.cy + 16);
+          ctx.restore();
           ctx.restore();
           return;
         }
@@ -4151,8 +4324,13 @@ with open(output_path, "w", encoding="utf-8") as f:
 
         this.environment = new WorldEnvironment(this.scene, this.renderer); this.world = this.environment;
         this.physics = new FlightPhysics(this.aircraft);
+        this.physics.app = this;
         this.combat = new CombatSystem(this.scene, this.aircraft, this.environment);
         this.hud = new HUDDisplay('hud-canvas', this.physics, this.environment, this.combat);
+
+        this.crashDebris = [];
+        this.cameraShake = 0;
+        this.crashLocation = new THREE.Vector3();
 
         this.keys = {};
         this.touchRoll = 0;
@@ -4292,6 +4470,10 @@ with open(output_path, "w", encoding="utf-8") as f:
           this.domTimeBtn.addEventListener('click', () => this.toggleTimeOfDay());
         }
         document.getElementById('respawn-btn').addEventListener('click', () => this.resetAircraft());
+        const crashRespawnBtn = document.getElementById('crash-respawn-btn');
+        if (crashRespawnBtn) {
+          crashRespawnBtn.addEventListener('click', () => this.resetAircraft());
+        }
         document.getElementById('help-btn').addEventListener('click', () => this.toggleHelp());
         document.getElementById('close-help-btn').addEventListener('click', () => this.toggleHelp());
 
@@ -4589,10 +4771,142 @@ with open(output_path, "w", encoding="utf-8") as f:
         }
       }
 
+      handleAircraftCrash(impactVel, impactSpeed) {
+        sound.playTargetExplosion();
+        sound.speakAlert('EJECT EJECT');
+
+        const impactKnots = Math.round(this.physics.speedKnots);
+        const impactMach = this.physics.mach.toFixed(2);
+        const impactG = Math.abs(this.physics.gForce).toFixed(1);
+        const euler = new THREE.Euler().setFromQuaternion(this.physics.quaternion, 'YXZ');
+        const impactPitch = Math.round(euler.x * (180 / Math.PI));
+        const isWater = (this.physics.position.y <= 38.0) && (Math.hypot(this.physics.position.x, this.physics.position.z + 2000) > 1750);
+        const crashPos = this.physics.position.clone();
+        this.crashLocation.copy(crashPos);
+
+        // Screen Shake Trauma
+        this.cameraShake = 4.8;
+
+        // Populate and show crash debrief modal
+        const spdEl = document.getElementById('crash-speed');
+        const machEl = document.getElementById('crash-mach');
+        const pitchEl = document.getElementById('crash-pitch');
+        const gEl = document.getElementById('crash-g');
+        const zoneEl = document.getElementById('crash-zone');
+        const modal = document.getElementById('crash-modal');
+
+        if (spdEl) spdEl.innerText = `${impactKnots} KTS`;
+        if (machEl) machEl.innerText = `M ${impactMach}`;
+        if (pitchEl) pitchEl.innerText = `${impactPitch}° ${impactPitch < 0 ? 'DIVE' : 'PULL'}`;
+        if (gEl) gEl.innerText = `${impactG} G`;
+        if (zoneEl) zoneEl.innerText = isWater ? 'PACIFIC OCEAN (WATER DITCHING)' : 'ISLAND TERRAIN IMPACT';
+        if (modal) {
+          modal.style.display = 'flex';
+        }
+
+        // Staggered primary and secondary fuel-air explosions
+        this.combat.createMultiStageExplosion(crashPos);
+        setTimeout(() => {
+          if (this.physics.isCrashed) {
+            const off1 = new THREE.Vector3((Math.random() - 0.5) * 16, 4, (Math.random() - 0.5) * 16);
+            this.combat.createMultiStageExplosion(crashPos.clone().add(off1));
+          }
+        }, 130);
+        setTimeout(() => {
+          if (this.physics.isCrashed) {
+            const off2 = new THREE.Vector3((Math.random() - 0.5) * 24, 7, (Math.random() - 0.5) * 24);
+            this.combat.createMultiStageExplosion(crashPos.clone().add(off2));
+          }
+        }, 290);
+
+        // If ocean impact: giant water geyser spouts
+        if (isWater) {
+          this.combat.createWaterGeyser(crashPos);
+          setTimeout(() => {
+            if (this.physics.isCrashed) {
+              this.combat.createWaterGeyser(crashPos.clone().add(new THREE.Vector3(12, 0, -8)));
+            }
+          }, 110);
+          setTimeout(() => {
+            if (this.physics.isCrashed) {
+              this.combat.createWaterGeyser(crashPos.clone().add(new THREE.Vector3(-14, 0, 10)));
+            }
+          }, 240);
+        }
+
+        // Hide pristine aircraft model
+        this.aircraft.innerModel.visible = false;
+
+        // Spawn dynamic wreckage & debris field
+        this.spawnCrashDebris(crashPos, impactVel);
+      }
+
+      spawnCrashDebris(origin, impactVel) {
+        this.clearCrashDebris();
+
+        const debrisMats = [
+          new THREE.MeshStandardMaterial({ color: 0x33383d, roughness: 0.8, metalness: 0.3 }),
+          new THREE.MeshStandardMaterial({ color: 0x222222, emissive: 0xff3300, emissiveIntensity: 0.9, roughness: 0.6 }),
+          new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9 }),
+          new THREE.MeshStandardMaterial({ color: 0x88929e, metalness: 0.7, roughness: 0.3 })
+        ];
+
+        const geometries = [
+          new THREE.BoxGeometry(1.8, 0.15, 2.4),
+          new THREE.BoxGeometry(0.8, 0.12, 1.6),
+          new THREE.CylinderGeometry(0.4, 0.5, 2.2, 8),
+          new THREE.ConeGeometry(0.6, 1.8, 6),
+          new THREE.BoxGeometry(0.6, 1.4, 0.1),
+          new THREE.SphereGeometry(0.35, 6, 6)
+        ];
+
+        for (let i = 0; i < 18; i++) {
+          const geo = geometries[i % geometries.length];
+          const mat = debrisMats[i % debrisMats.length];
+          const mesh = new THREE.Mesh(geo, mat);
+          mesh.position.copy(origin).add(new THREE.Vector3(
+            (Math.random() - 0.5) * 8,
+            Math.random() * 4 + 1,
+            (Math.random() - 0.5) * 8
+          ));
+
+          const fwdImpulse = impactVel.clone().multiplyScalar(0.25);
+          const spreadSpeed = 18 + Math.random() * 32;
+          const burstVel = new THREE.Vector3(
+            (Math.random() - 0.5) * spreadSpeed,
+            Math.random() * 24 + 10,
+            (Math.random() - 0.5) * spreadSpeed
+          ).add(fwdImpulse);
+
+          const rotVel = new THREE.Vector3(
+            (Math.random() - 0.5) * 16,
+            (Math.random() - 0.5) * 16,
+            (Math.random() - 0.5) * 16
+          );
+
+          this.scene.add(mesh);
+          this.crashDebris.push({ mesh, velocity: burstVel, rotVel, bounceCount: 0 });
+        }
+      }
+
+      clearCrashDebris() {
+        if (!this.crashDebris) return;
+        for (const d of this.crashDebris) {
+          this.scene.remove(d.mesh);
+        }
+        this.crashDebris = [];
+      }
+
       resetAircraft() {
+        this.clearCrashDebris();
+        this.aircraft.innerModel.visible = true;
         this.physics.reset();
+        const crashModal = document.getElementById('crash-modal');
+        if (crashModal) crashModal.style.display = 'none';
         document.getElementById('master-warning').style.display = 'none';
+        this.cameraShake = 0;
         this.setCamera(0);
+        sound.speakAlert('SYSTEMS RESTORED');
       }
 
       toggleHelp() {
@@ -4678,7 +4992,20 @@ with open(output_path, "w", encoding="utf-8") as f:
         const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.physics.quaternion);
         const up = new THREE.Vector3(0, 1, 0).applyQuaternion(this.physics.quaternion);
 
-        if (this.cameraMode === 0) {
+        if (this.physics.isCrashed) {
+          // Cinematic Crash Orbit Cam: Circles burning impact site
+          const t = performance.now() * 0.00045;
+          const orbitDist = 58;
+          const orbitHeight = 19;
+          const targetCamPos = this.crashLocation.clone().add(new THREE.Vector3(
+            Math.cos(t) * orbitDist,
+            orbitHeight,
+            Math.sin(t) * orbitDist
+          ));
+          this.camera.position.lerp(targetCamPos, 0.08);
+          this.camera.up.set(0, 1, 0);
+          this.camera.lookAt(this.crashLocation.clone().add(new THREE.Vector3(0, 5, 0)));
+        } else if (this.cameraMode === 0) {
           // Chase Cam (Aligned directly behind jet along world vertical axis, preventing horizontal drift)
           const chaseDist = 13.5 + (this.physics.speedKnots / 700) * 5;
           const chaseHeight = 2.6 + Math.abs(this.physics.pitchInput) * 0.8;
@@ -4720,10 +5047,22 @@ with open(output_path, "w", encoding="utf-8") as f:
           this.camera.position.add(delta);
           this.orbitControls.update();
         }
+
+        // Screen Shake Trauma on impact or high vibration
+        if (this.cameraShake > 0) {
+          this.camera.position.x += (Math.random() - 0.5) * this.cameraShake;
+          this.camera.position.y += (Math.random() - 0.5) * this.cameraShake;
+          this.camera.position.z += (Math.random() - 0.5) * this.cameraShake;
+          this.cameraShake = Math.max(0, this.cameraShake - 0.06);
+        }
       }
 
       updateGForceOverlay() {
         const overlay = document.getElementById('g-overlay');
+        if (this.physics.isCrashed) {
+          overlay.style.background = 'radial-gradient(circle, transparent 20%, rgba(180, 0, 0, 0.75) 75%, rgba(0, 0, 0, 0.95) 100%)';
+          return;
+        }
         const g = this.physics.gForce;
         if (g > 5.5) {
           const blackIntensity = Math.min((g - 5.5) / 3.5, 0.95);
@@ -4742,6 +5081,32 @@ with open(output_path, "w", encoding="utf-8") as f:
         const now = performance.now();
         const dt = Math.min((now - this.lastTime) / 1000, 0.1);
         this.lastTime = now;
+
+        // Update crash debris physics
+        if (this.crashDebris && this.crashDebris.length > 0) {
+          for (let i = 0; i < this.crashDebris.length; i++) {
+            const d = this.crashDebris[i];
+            d.mesh.position.addScaledVector(d.velocity, dt);
+            d.velocity.y -= 25 * dt;
+            d.velocity.multiplyScalar(0.985);
+            d.mesh.rotation.x += d.rotVel.x * dt;
+            d.mesh.rotation.y += d.rotVel.y * dt;
+            d.mesh.rotation.z += d.rotVel.z * dt;
+            if (d.mesh.position.y <= 36.5) {
+              d.mesh.position.y = 36.5;
+              if (d.bounceCount < 3) {
+                d.velocity.y = -d.velocity.y * 0.35;
+                d.velocity.x *= 0.6;
+                d.velocity.z *= 0.6;
+                d.rotVel.multiplyScalar(0.5);
+                d.bounceCount++;
+              } else {
+                d.velocity.set(0, 0, 0);
+                d.rotVel.set(0, 0, 0);
+              }
+            }
+          }
+        }
 
         this.handleInputs(dt);
         this.physics.update(dt);
