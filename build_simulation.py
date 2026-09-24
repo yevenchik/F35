@@ -663,6 +663,9 @@ with open(output_path, "w", encoding="utf-8") as f:
         <button class="hud-btn" id="pitch-mode-btn" title="Toggle Inverted Pitch / Flight Stick (I)">
           PITCH: NORMAL
         </button>
+        <button class="hud-btn active" id="gcas-toggle-btn" title="Toggle Auto-GCAS Ground Collision Avoidance (O)">
+          GCAS: ARM
+        </button>
         <button class="hud-btn" id="gfx-toggle-btn" title="Toggle Ultra Post-Processing Graphics">
           GFX: ULTRA
         </button>
@@ -792,6 +795,7 @@ with open(output_path, "w", encoding="utf-8") as f:
           <div class="help-row"><span>Toggle Landing Gear</span><span class="key-badge">G</span></div>
           <div class="help-row"><span>Cycle Camera Views</span><span class="key-badge">V / 1-4</span></div>
           <div class="help-row"><span>Toggle Sound Synthesizer</span><span class="key-badge">M</span></div>
+          <div class="help-row"><span>Toggle Auto-GCAS (Fly-Up)</span><span class="key-badge">O</span></div>
           <div class="help-row"><span>Respawn Aircraft</span><span class="key-badge">R</span></div>
         </div>
       </div>
@@ -1630,9 +1634,12 @@ with open(output_path, "w", encoding="utf-8") as f:
         ctx.fillText(`GUN: ${state.ammo} RDS`, 14, 116);
         ctx.fillText(`AMRAAM: ${state.missilesLeft} / 4`, 14, 136);
         ctx.fillText(`SIDEWINDER: 2 / 2`, 14, 156);
-        ctx.fillText(`FLARES: ${state.flaresLeft}`, 14, 176);
-        ctx.fillText(`GEAR: ${state.gearDown ? 'DOWN' : 'UP'}`, 14, 206);
-        ctx.fillText(`BEAST: ${beastMode ? 'ACTIVE' : 'STEALTH'}`, 14, 226);
+        ctx.fillText(`GEAR: ${state.gearDown ? 'DOWN' : 'UP'}`, 14, 196);
+        ctx.fillText(`BEAST: ${beastMode ? 'ACTIVE' : 'STEALTH'}`, 14, 212);
+        ctx.fillStyle = state.autoGcasActive ? '#ff2222' : (state.autoGcasArmed ? '#00ff77' : '#778899');
+        ctx.fillText(`GCAS: ${state.autoGcasActive ? 'PULL-UP!' : (state.autoGcasArmed ? 'ARMED' : 'OFF')}`, 14, 228);
+        ctx.fillText(`FBW: G-LIM [9G]`, 14, 242);
+        ctx.fillStyle = '#00ff77';
 
         // 2. Center Synthetic ADI
         ctx.save();
@@ -1771,8 +1778,11 @@ with open(output_path, "w", encoding="utf-8") as f:
         this.afterburnerPlume = null;
         this.shockDiamonds = [];
         this.vaporCone = null;
+        this.vaporOuterCone = null;
         this.leftWingVortex = null;
         this.rightWingVortex = null;
+        this.leftLexVortex = null;
+        this.rightLexVortex = null;
         this.heatShimmerGroup = new THREE.Group();
         this.hotasStick = null;
         this.hotasThrottle = null;
@@ -2142,23 +2152,60 @@ with open(output_path, "w", encoding="utf-8") as f:
         this.afterburnerPlume.visible = false;
         m.add(plumeGroup);
 
-        // Transonic Prandtl-Glauert Vapor Shock Collar (Mach ~ 1.0)
-        const vaporGeo = new THREE.CylinderGeometry(2.4, 3.8, 1.2, 16, 1, true);
-        vaporGeo.rotateX(Math.PI / 2);
-        this.vaporCone = new THREE.Mesh(vaporGeo, new THREE.MeshBasicMaterial({
+        // Multi-Layer Transonic Prandtl-Glauert Vapor Shock Collar & Expansion Shroud
+        const vaporGroup = new THREE.Group();
+        const vaporInnerGeo = new THREE.CylinderGeometry(2.1, 4.2, 1.4, 24, 1, true);
+        vaporInnerGeo.rotateX(Math.PI / 2);
+        this.vaporCone = new THREE.Mesh(vaporInnerGeo, new THREE.MeshBasicMaterial({
           color: 0xffffff,
           transparent: true,
           opacity: 0.0,
           side: THREE.DoubleSide,
           blending: THREE.AdditiveBlending
         }));
-        this.vaporCone.position.set(0, 0.25, -0.6);
-        m.add(this.vaporCone);
+        this.vaporCone.position.set(0, 0.22, -0.7);
+        vaporGroup.add(this.vaporCone);
 
-        // Wingtip Vortex Ribbons (High-G Turns)
-        const vortexGeo = new THREE.CylinderGeometry(0.04, 0.12, 18, 6);
+        const vaporOuterGeo = new THREE.CylinderGeometry(3.6, 5.8, 2.0, 24, 1, true);
+        vaporOuterGeo.rotateX(Math.PI / 2);
+        this.vaporOuterCone = new THREE.Mesh(vaporOuterGeo, new THREE.MeshBasicMaterial({
+          color: 0xcce2ff,
+          transparent: true,
+          opacity: 0.0,
+          side: THREE.DoubleSide,
+          blending: THREE.AdditiveBlending
+        }));
+        this.vaporOuterCone.position.set(0, 0.18, -1.2);
+        vaporGroup.add(this.vaporOuterCone);
+
+        m.add(vaporGroup);
+
+        // Forebody LERX (Leading-Edge Extension) Chines Vortex Contrails (High-AoA / High-G)
+        const lexVortexGeo = new THREE.CylinderGeometry(0.025, 0.20, 13, 8);
+        lexVortexGeo.rotateX(Math.PI / 2);
+        const lexVortexMat = new THREE.MeshBasicMaterial({
+          color: 0xeef5ff,
+          transparent: true,
+          opacity: 0.0,
+          blending: THREE.AdditiveBlending
+        });
+        this.leftLexVortex = new THREE.Mesh(lexVortexGeo, lexVortexMat);
+        this.leftLexVortex.position.set(-1.05, 0.15, -7.2);
+        m.add(this.leftLexVortex);
+
+        this.rightLexVortex = new THREE.Mesh(lexVortexGeo, lexVortexMat);
+        this.rightLexVortex.position.set(1.05, 0.15, -7.2);
+        m.add(this.rightLexVortex);
+
+        // Outboard Wingtip Vortex Ribbons (High-G Turns)
+        const vortexGeo = new THREE.CylinderGeometry(0.035, 0.14, 18, 8);
         vortexGeo.rotateX(Math.PI / 2);
-        const vortexMat = new THREE.MeshBasicMaterial({ color: 0xddeeff, transparent: true, opacity: 0.0, blending: THREE.AdditiveBlending });
+        const vortexMat = new THREE.MeshBasicMaterial({
+          color: 0xddeeff,
+          transparent: true,
+          opacity: 0.0,
+          blending: THREE.AdditiveBlending
+        });
         this.leftWingVortex = new THREE.Mesh(vortexGeo, vortexMat);
         this.leftWingVortex.position.set(-5.15, 0.15, -11.0);
         m.add(this.leftWingVortex);
@@ -2386,25 +2433,52 @@ with open(output_path, "w", encoding="utf-8") as f:
           }
         }
 
-        // Transonic Prandtl-Glauert Vapor Shock Collar
-        if (this.vaporCone) {
+        // Transonic Prandtl-Glauert Vapor Shock Collar & Expansion Shroud
+        if (this.vaporCone && this.vaporOuterCone) {
           const m = physics.mach;
-          if (m >= 0.94 && m <= 1.06) {
-            const intensity = 1.0 - Math.abs(m - 1.0) / 0.06;
-            this.vaporCone.material.opacity = intensity * 0.65 * (0.85 + Math.random() * 0.3);
-            this.vaporCone.scale.setScalar(1.0 + (m - 0.94) * 0.8);
+          if (m >= 0.93 && m <= 1.06) {
+            const envelope = Math.sin(Math.PI * (m - 0.93) / 0.13);
+            const flutter = 0.82 + Math.sin(performance.now() * 0.035) * 0.18;
+            const gBoost = Math.max(0, (physics.gForce - 1.0) * 0.08);
+            const opacity = Math.min(0.85, envelope * flutter * (0.65 + gBoost));
+            this.vaporCone.material.opacity = opacity;
+            this.vaporOuterCone.material.opacity = opacity * 0.65;
+            const scale = 1.0 + (m - 0.93) * 0.6;
+            this.vaporCone.scale.set(scale, scale, 1.0 + Math.sin(performance.now() * 0.02) * 0.08);
+            this.vaporOuterCone.scale.set(scale * 1.05, scale * 1.05, 1.0 + Math.cos(performance.now() * 0.02) * 0.08);
           } else {
             this.vaporCone.material.opacity = 0.0;
+            this.vaporOuterCone.material.opacity = 0.0;
           }
         }
 
-        // Wingtip Vortex Ribbons
+        // Forebody LERX (Chines) & Wingtip Vortex Ribbons
         const g = Math.abs(physics.gForce);
+        const aoa = Math.abs(physics.aoaDeg);
+        const spd = physics.speedKnots;
+
+        if (this.leftLexVortex && this.rightLexVortex) {
+          if ((aoa > 7.5 || g > 3.8) && spd > 160) {
+            const lexIntensity = Math.min(0.80, (aoa > 7.5 ? (aoa - 7.5) / 12.0 : 0) + (g > 3.8 ? (g - 3.8) / 5.5 : 0));
+            this.leftLexVortex.material.opacity = lexIntensity;
+            this.rightLexVortex.material.opacity = lexIntensity;
+            const lexScaleZ = 1.0 + Math.min(1.5, spd / 350);
+            this.leftLexVortex.scale.set(1.0 + lexIntensity * 0.4, 1.0 + lexIntensity * 0.4, lexScaleZ);
+            this.rightLexVortex.scale.set(1.0 + lexIntensity * 0.4, 1.0 + lexIntensity * 0.4, lexScaleZ);
+          } else {
+            this.leftLexVortex.material.opacity = 0.0;
+            this.rightLexVortex.material.opacity = 0.0;
+          }
+        }
+
         if (this.leftWingVortex && this.rightWingVortex) {
-          if (g > 4.2 && physics.speedKnots > 200) {
-            const vortexAlpha = Math.min(0.7, (g - 4.2) / 4.0);
-            this.leftWingVortex.material.opacity = vortexAlpha;
-            this.rightWingVortex.material.opacity = vortexAlpha;
+          if (g > 3.6 && spd > 200) {
+            const tipAlpha = Math.min(0.72, (g - 3.6) / 4.2);
+            this.leftWingVortex.material.opacity = tipAlpha;
+            this.rightWingVortex.material.opacity = tipAlpha;
+            const tipScaleZ = 1.0 + Math.min(1.6, spd / 380);
+            this.leftWingVortex.scale.set(1.0, 1.0, tipScaleZ);
+            this.rightWingVortex.scale.set(1.0, 1.0, tipScaleZ);
           } else {
             this.leftWingVortex.material.opacity = 0.0;
             this.rightWingVortex.material.opacity = 0.0;
@@ -3571,6 +3645,11 @@ with open(output_path, "w", encoding="utf-8") as f:
         this.yawRate = 0;
 
         this.alertTimer = 0;
+        this.autoGcasArmed = true;
+        this.autoGcasActive = false;
+        this.autoGcasTimer = 0;
+        this.fbwGLimiter = true;
+        this.fbwAoALimiter = true;
       }
 
       reset() {
@@ -3584,6 +3663,8 @@ with open(output_path, "w", encoding="utf-8") as f:
         this.ammo = 180;
         this.missilesLeft = 4;
         this.flaresLeft = 24;
+        this.autoGcasActive = false;
+        this.autoGcasTimer = 0;
       }
 
       update(dt) {
@@ -3602,12 +3683,63 @@ with open(output_path, "w", encoding="utf-8") as f:
         const localVel = this.velocity.clone().applyQuaternion(this.quaternion.clone().invert());
         this.aoaDeg = (speed > 10) ? Math.atan2(-localVel.y, -localVel.z) * (180 / Math.PI) : 0;
 
+        // Auto-GCAS (Automatic Ground Collision Avoidance System)
+        const groundElevation = 36.5;
+        const aglAltitudeM = Math.max(0, this.position.y - groundElevation);
+        const sinkRateMps = -this.velocity.y; // Positive when diving
+
+        if (this.autoGcasArmed && !this.onGround && aglAltitudeM > 8) {
+          const timeToCrashSec = (sinkRateMps > 4) ? (aglAltitudeM / sinkRateMps) : 999;
+          if ((timeToCrashSec < 1.95 && aglAltitudeM < 350) || (aglAltitudeM < 70 && sinkRateMps > 8)) {
+            if (!this.autoGcasActive) {
+              this.autoGcasActive = true;
+              this.autoGcasTimer = 0;
+              sound.speakAlert('PULL UP');
+            }
+          }
+        }
+
+        if (this.autoGcasActive) {
+          this.autoGcasTimer += dt;
+          // Emergency fly-up trajectory: auto roll wings level and command +5G pull-up
+          const rightVec = new THREE.Vector3(1, 0, 0).applyQuaternion(this.quaternion);
+          const bankSin = -rightVec.y;
+          this.rollInput = bankSin * 3.2;
+          this.pitchInput = 1.0;
+          if (this.throttle < 0.90) this.throttle = 0.90;
+
+          // Safe exit criteria
+          if (this.velocity.y > 16 && aglAltitudeM > 120 && forward.y > 0.08) {
+            this.autoGcasActive = false;
+          }
+        }
+
         // Flight surface control authority
         const dynamicPres = Math.min(1.0, speed / 120);
-        const pitchRate = this.pitchInput * 1.65 * dynamicPres;
+        let pitchRate = this.pitchInput * 1.65 * dynamicPres;
         const rollRate = this.rollInput * 2.85 * dynamicPres;
         const yawRate = this.yawInput * 0.85 * dynamicPres;
         this.yawRate = yawRate;
+
+        // FBW G-Limiter (+9.0G Airframe Overstress Protection)
+        if (this.fbwGLimiter && this.gForce > 8.6 && this.pitchInput > 0) {
+          const gExcess = Math.max(0, this.gForce - 8.6);
+          const gDamp = Math.max(0.06, 1.0 - gExcess * 1.8);
+          pitchRate *= gDamp;
+        }
+
+        // FBW AoA-Limiter (28° High-Alpha Departure Prevention)
+        if (this.fbwAoALimiter && this.aoaDeg > 26.5 && this.pitchInput > 0) {
+          const aoaExcess = Math.max(0, this.aoaDeg - 26.5);
+          const aoaDamp = Math.max(0.10, 1.0 - aoaExcess * 0.35);
+          pitchRate *= aoaDamp;
+        }
+
+        // FBW Auto-Trim (maintains 1.0G level flight when hands off stick)
+        if (Math.abs(this.pitchInput) < 0.04 && !this.onGround && !this.autoGcasActive && speed > 55) {
+          const gTrimErr = 1.0 - this.gForce;
+          pitchRate += Math.max(-0.4, Math.min(0.4, gTrimErr * 0.22));
+        }
 
         // Aerodynamic bank-to-turn FBW coordination
         const rightVec = new THREE.Vector3(1, 0, 0).applyQuaternion(this.quaternion);
@@ -3794,9 +3926,41 @@ with open(output_path, "w", encoding="utf-8") as f:
         }
         ctx.restore();
 
-        // 4. Heading Tape
-        const tapeY = isMobile ? 45 : 65;
+        // 4. Heading Tape & FBW Envelope Status
+        const tapeY = isMobile ? 55 : 75;
         const curHead = this.physics.headingDeg;
+
+        // FBW & Auto-GCAS Status Tape
+        const gcasStatus = this.physics.autoGcasArmed ? (this.physics.autoGcasActive ? 'ACTIVE' : 'ARM') : 'OFF';
+        const fbwText = `FBW: G-LIM [9.0G] | AOA-LIM [28°] | GCAS: [${gcasStatus}]`;
+        ctx.font = '11px "Share Tech Mono", monospace';
+        ctx.fillStyle = this.physics.autoGcasActive ? '#ffaa00' : 'rgba(0, 255, 119, 0.75)';
+        ctx.fillText(fbwText, this.cx - 130, tapeY - 26);
+        ctx.font = '14px "Share Tech Mono", monospace';
+        ctx.fillStyle = '#00ff77';
+
+        // Auto-GCAS Emergency Pull-Up Warning & Flying Chevrons
+        if (this.physics.autoGcasActive) {
+          const flash = Math.floor(performance.now() / 140) % 2 === 0;
+          ctx.save();
+          ctx.fillStyle = flash ? '#ff2222' : '#ffaa00';
+          ctx.strokeStyle = flash ? '#ff2222' : '#ffaa00';
+          ctx.lineWidth = 3.5;
+          ctx.font = 'bold 22px "Share Tech Mono", monospace';
+          ctx.fillText('▲▲ AUTO-GCAS PULL UP ▲▲', this.cx - 150, hudCenterY - 110);
+
+          // Draw animated flight path recovery chevrons pointing up
+          const chevronAnim = (performance.now() % 600) / 600;
+          for (let c = 0; c < 3; c++) {
+            const cy = hudCenterY - 75 - c * 26 + chevronAnim * 14;
+            ctx.beginPath();
+            ctx.moveTo(this.cx - 32, cy + 14);
+            ctx.lineTo(this.cx, cy);
+            ctx.lineTo(this.cx + 32, cy + 14);
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
         ctx.strokeRect(this.cx - 140, tapeY - 20, 280, 28);
         ctx.beginPath();
         ctx.moveTo(this.cx, tapeY + 12); ctx.lineTo(this.cx - 5, tapeY + 19); ctx.lineTo(this.cx + 5, tapeY + 19);
@@ -4085,6 +4249,7 @@ with open(output_path, "w", encoding="utf-8") as f:
           if (e.code === 'KeyP') this.toggleBeastMode();
           if (e.code === 'KeyC') this.deployFlares();
           if (e.code === 'KeyI') this.togglePitchInvert();
+          if (e.code === 'KeyO') this.toggleAutoGCAS();
           if (e.code === 'Space') this.launchMissile();
           if (e.code === 'KeyR') this.resetAircraft();
           if (e.code === 'KeyH') this.toggleHelp();
@@ -4114,6 +4279,10 @@ with open(output_path, "w", encoding="utf-8") as f:
         this.domGfxBtn.addEventListener('click', () => this.toggleGraphics());
         this.domBayBtn.addEventListener('click', () => this.toggleBay());
         this.domGearBtn.addEventListener('click', () => this.toggleGear());
+        const gcasBtn = document.getElementById('gcas-toggle-btn');
+        if (gcasBtn) {
+          gcasBtn.addEventListener('click', () => this.toggleAutoGCAS());
+        }
         if (this.domPitchModeBtn) {
           this.domPitchModeBtn.addEventListener('click', () => this.togglePitchInvert());
         }
@@ -4356,6 +4525,19 @@ with open(output_path, "w", encoding="utf-8") as f:
         this.physics.gearDown = !this.physics.gearDown;
         this.domGearBtn.innerText = this.physics.gearDown ? 'GEAR: DOWN' : 'GEAR: UP';
         this.domGearBtn.classList.toggle('active', this.physics.gearDown);
+      }
+
+      toggleAutoGCAS() {
+        this.physics.autoGcasArmed = !this.physics.autoGcasArmed;
+        if (!this.physics.autoGcasArmed) {
+          this.physics.autoGcasActive = false;
+        }
+        const btn = document.getElementById('gcas-toggle-btn');
+        if (btn) {
+          btn.innerText = this.physics.autoGcasArmed ? 'GCAS: ARM' : 'GCAS: OFF';
+          btn.classList.toggle('active', this.physics.autoGcasArmed);
+        }
+        sound.speakAlert(this.physics.autoGcasArmed ? 'AUTO GCAS ARMED' : 'AUTO GCAS DISABLED');
       }
 
       togglePitchInvert() {
