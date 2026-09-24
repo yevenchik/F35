@@ -733,6 +733,281 @@
       .top-controls { gap: 4px; }
       .hud-btn { padding: 4px 7px; font-size: 11px; }
     }
+
+    /* TACTICAL SITUATION DISPLAY (TSD / PCD) GLASS PORTAL */
+    #tactical-mfd-portal {
+      position: absolute;
+      bottom: 84px;
+      right: 20px;
+      width: 380px;
+      height: 350px;
+      background: rgba(6, 12, 18, 0.94);
+      border: 1px solid rgba(0, 255, 119, 0.45);
+      border-radius: 8px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8), 0 0 20px rgba(0, 255, 119, 0.2);
+      backdrop-filter: blur(14px);
+      z-index: 50;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      font-family: 'Rajdhani', sans-serif;
+      transition: transform 0.25s ease, opacity 0.25s ease;
+      pointer-events: auto;
+    }
+
+    #tactical-mfd-portal.minimized {
+      height: 38px;
+    }
+
+    #tactical-mfd-portal.closed {
+      display: none;
+    }
+
+    .mfd-header {
+      background: rgba(14, 28, 36, 0.95);
+      border-bottom: 1px solid rgba(0, 255, 119, 0.35);
+      padding: 6px 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: grab;
+      user-select: none;
+    }
+
+    .mfd-title-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .mfd-badge {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      padding: 1px 5px;
+      background: rgba(0, 255, 119, 0.15);
+      border: 1px solid var(--hud-green);
+      color: var(--hud-green);
+      border-radius: 3px;
+      letter-spacing: 1px;
+    }
+
+    .mfd-title {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      color: #fff;
+    }
+
+    .mfd-controls {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .mfd-btn-sm {
+      background: rgba(10, 20, 28, 0.9);
+      border: 1px solid rgba(0, 255, 119, 0.3);
+      color: #b0d8c8;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      padding: 3px 6px;
+      border-radius: 3px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .mfd-btn-sm:hover, .mfd-btn-sm.active {
+      background: rgba(0, 255, 119, 0.25);
+      border-color: var(--hud-green);
+      color: #fff;
+    }
+
+    .mfd-telemetry-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 10px;
+      background: rgba(3, 8, 12, 0.85);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10.5px;
+      color: var(--hud-green);
+    }
+
+    .mfd-viewport-container {
+      position: relative;
+      flex: 1;
+      width: 100%;
+      background: #04090e;
+      overflow: hidden;
+    }
+
+    #gmap-pcd-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      display: none;
+    }
+
+    #offline-pcd-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 2;
+      display: block;
+    }
+
+    .mfd-reticle-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 3;
+      pointer-events: none;
+    }
+
+    .mfd-ownship-icon {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 28px;
+      height: 28px;
+      margin-top: -14px;
+      margin-left: -14px;
+      z-index: 4;
+      pointer-events: none;
+      transform-origin: center center;
+      transition: transform 0.05s linear;
+    }
+
+    .mfd-footer-bar {
+      padding: 4px 10px;
+      background: rgba(4, 9, 14, 0.95);
+      border-top: 1px solid rgba(0, 255, 119, 0.3);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      color: #8bb8a8;
+    }
+
+    .mfd-attribution {
+      font-size: 9px;
+      color: #6a9686;
+    }
+
+    /* THEATER & MISSION SELECTOR MODAL */
+    .theater-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 12px;
+      margin-top: 8px;
+    }
+
+    .theater-card {
+      background: rgba(12, 22, 32, 0.85);
+      border: 1px solid rgba(0, 255, 119, 0.25);
+      border-radius: 6px;
+      padding: 12px 14px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      transition: all 0.2s ease;
+      text-align: left;
+    }
+
+    .theater-card:hover {
+      background: rgba(0, 255, 119, 0.12);
+      border-color: var(--hud-green);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(0, 255, 119, 0.25);
+    }
+
+    .theater-card.selected {
+      background: rgba(0, 255, 119, 0.2);
+      border-color: var(--hud-green);
+      box-shadow: 0 0 16px rgba(0, 255, 119, 0.35);
+    }
+
+    .theater-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .theater-card-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: 1px;
+    }
+
+    .theater-icao {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 11px;
+      color: var(--hud-green);
+      background: rgba(0, 255, 119, 0.15);
+      padding: 1px 6px;
+      border-radius: 3px;
+    }
+
+    .theater-desc {
+      font-size: 12px;
+      color: #9cb5ab;
+      line-height: 1.3;
+    }
+
+    .theater-stats {
+      display: flex;
+      gap: 12px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10.5px;
+      color: #6a9b88;
+      margin-top: 2px;
+    }
+
+    .api-key-config-box {
+      margin-top: 14px;
+      padding: 12px 16px;
+      background: rgba(4, 9, 14, 0.9);
+      border: 1px solid rgba(0, 255, 119, 0.3);
+      border-radius: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .api-key-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .api-key-input {
+      flex: 1;
+      background: #020609;
+      border: 1px solid rgba(0, 255, 119, 0.4);
+      border-radius: 4px;
+      padding: 6px 10px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 12px;
+      color: #00ffaa;
+      outline: none;
+    }
+
+    .api-key-input:focus {
+      border-color: var(--hud-green);
+      box-shadow: 0 0 10px rgba(0, 255, 119, 0.3);
+    }
+
   </style>
 </head>
 <body>
@@ -778,7 +1053,13 @@
         </div>
       </div>
       <div class="top-controls">
-        <button class="hud-btn" id="audio-toggle-btn" title="Toggle Sound Engine (M)">
+        <button class="hud-btn active" id="map-toggle-btn" title="Toggle Tactical Moving Map MFD (M)">
+          <span>&#128506;</span> MAP (M)
+        </button>
+        <button class="hud-btn" id="theater-toggle-btn" title="Select Mission Flight Theater (T)">
+          <span>&#9992;</span> THEATER (T)
+        </button>
+        <button class="hud-btn" id="audio-toggle-btn" title="Toggle Sound Engine (U)">
           <span id="audio-icon">&#128263;</span> SOUND: OFF
         </button>
         <button class="hud-btn" id="beast-toggle-btn" title="Toggle Beast Mode External Pylons (P)">
@@ -893,6 +1174,117 @@
       <div class="mobile-btn-row">
         <button class="touch-round-btn primary-msl" id="touch-btn-missile">MSL</button>
         <button class="touch-round-btn primary-gun" id="touch-btn-gun">GUN</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- TACTICAL SITUATION DISPLAY (TSD / PCD) GLASS PORTAL -->
+  <div id="tactical-mfd-portal" class="interactive">
+    <div class="mfd-header" id="mfd-drag-header">
+      <div class="mfd-title-group">
+        <span class="mfd-badge">PCD-TSD</span>
+        <span class="mfd-title" id="mfd-theater-name">NELLIS AFB (KLSV)</span>
+      </div>
+      <div class="mfd-controls">
+        <button class="mfd-btn-sm active" id="mfd-btn-trk" title="Toggle Track-Up / North-Up">TRK-UP</button>
+        <button class="mfd-btn-sm" id="mfd-btn-mode" title="Switch Tactical Vector / Satellite Mode">VEC</button>
+        <button class="mfd-btn-sm" id="mfd-btn-theater" title="Open Flight Theater Selector">THEATER</button>
+        <button class="mfd-btn-sm" id="mfd-btn-min" title="Minimize Display">_</button>
+        <button class="mfd-btn-sm" id="mfd-btn-close" title="Close MFD Portal (M)">&times;</button>
+      </div>
+    </div>
+    <div class="mfd-telemetry-bar">
+      <span id="mfd-gps-coords">GPS: 36°14'10"N 115°02'02"W</span>
+      <span id="mfd-nav-hdg">HDG: 034°</span>
+      <span id="mfd-nav-alt">ALT: 1,870 FT</span>
+    </div>
+    <div class="mfd-viewport-container">
+      <div id="gmap-pcd-container"></div>
+      <canvas id="offline-pcd-canvas" width="380" height="250"></canvas>
+      <div class="mfd-reticle-overlay">
+        <!-- SVG Ownship Aircraft Chevron -->
+        <svg class="mfd-ownship-icon" id="mfd-ownship-icon" viewBox="0 0 32 32">
+          <polygon points="16,2 26,26 16,21 6,26" fill="#00ff77" stroke="#04120a" stroke-width="1.5" />
+          <circle cx="16" cy="16" r="2.5" fill="#ffffff" />
+        </svg>
+      </div>
+    </div>
+    <div class="mfd-footer-bar">
+      <span id="mfd-steerpoint-info">NEXT WP: BROWNS PEAK | RNG: 8.4 NM</span>
+      <span class="mfd-attribution" id="mfd-attribution-tag">GOOGLE MAPS PLATFORM</span>
+    </div>
+  </div>
+
+  <!-- THEATER & MISSION SELECTOR MODAL -->
+  <div class="modal-overlay" id="theater-modal">
+    <div class="modal-box" style="max-width: 780px;">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span>MISSION THEATER & GOOGLE MAPS CONFIGURATION</span>
+        </div>
+        <button class="close-btn" id="close-theater-btn">&times;</button>
+      </div>
+      <div class="theater-grid">
+        <div class="theater-card selected" data-theater="NELLIS">
+          <div class="theater-card-header">
+            <span class="theater-card-title">&#127956; NELLIS AFB / NTTR</span>
+            <span class="theater-icao">KLSV</span>
+          </div>
+          <div class="theater-desc">Home of the USAF Weapons School & Red Flag. Realistic desert valleys, Dreamland / Area 51 corridor, and Nellis runway 03L/21R.</div>
+          <div class="theater-stats"><span>RWY: 034° (3,060m)</span><span>ELEV: 570m MSL</span><span>SAM: SA-10 DEFENSE</span></div>
+        </div>
+
+        <div class="theater-card" data-theater="MIRAMAR">
+          <div class="theater-card-header">
+            <span class="theater-card-title">&#127754; MCAS MIRAMAR / SAN DIEGO</span>
+            <span class="theater-icao">KMCAS</span>
+          </div>
+          <div class="theater-desc">Pacific coastal naval operations, Coronado berths, aircraft carrier berths, coastal dogfights, and Miramar runway 24L.</div>
+          <div class="theater-stats"><span>RWY: 242° (3,650m)</span><span>ELEV: 145m MSL</span><span>COASTAL THEATER</span></div>
+        </div>
+
+        <div class="theater-card" data-theater="DEATH_VALLEY">
+          <div class="theater-card-header">
+            <span class="theater-card-title">&#127958; STAR WARS CANYON</span>
+            <span class="theater-icao">JEDI</span>
+          </div>
+          <div class="theater-desc">Death Valley Rainbow Canyon low-level terrain following between Father Crowley Overlook and Panamint Valley.</div>
+          <div class="theater-stats"><span>AIR DROP / CANYON</span><span>ELEV: 1,280m MSL</span><span>LOW-ALT TERRAIN</span></div>
+        </div>
+
+        <div class="theater-card" data-theater="EDWARDS">
+          <div class="theater-card-header">
+            <span class="theater-card-title">&#9889; EDWARDS AFB / DRY LAKE</span>
+            <span class="theater-icao">KEDW</span>
+          </div>
+          <div class="theater-desc">Mojave Desert flight test center. Massive flat Rogers dry lakebed for supersonic Mach 1.6 sprints and touch-and-go drills.</div>
+          <div class="theater-stats"><span>RWY: 225° (4,570m)</span><span>ELEV: 702m MSL</span><span>SUPERSONIC CORRIDOR</span></div>
+        </div>
+
+        <div class="theater-card" data-theater="ISLAND">
+          <div class="theater-card-header">
+            <span class="theater-card-title">&#127965; PACIFIC ARCHIPELAGO</span>
+            <span class="theater-icao">SANDBOX</span>
+          </div>
+          <div class="theater-desc">Classic offline simulation sandbox with carrier strike group, island mountains, Gerstner ocean waves, and military airbase.</div>
+          <div class="theater-stats"><span>RWY: 000° (3,000m)</span><span>ELEV: 36.5m MSL</span><span>FLEET STRIKE</span></div>
+        </div>
+      </div>
+
+      <div class="api-key-config-box">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-weight:700; font-size:13px; color:#fff; letter-spacing:1px;">GOOGLE MAPS PLATFORM API INTEGRATION</span>
+          <span id="gmap-status-pill" style="font-family:'Share Tech Mono', monospace; font-size:11px; color:#00ffaa; background:rgba(0,255,119,0.15); padding:2px 8px; border-radius:4px; border:1px solid #00ff77;">STATUS: OFFLINE TACTICAL VECTOR</span>
+        </div>
+        <div class="api-key-row">
+          <input type="password" id="gmap-api-key-input" class="api-key-input" placeholder="Paste Google Cloud API Key or leave empty for Demo/Offline..." />
+          <button class="hud-btn" id="save-api-key-btn" style="padding:6px 14px;">CONNECT KEY</button>
+          <button class="hud-btn" id="demo-key-btn" style="padding:6px 14px; background:rgba(0,168,255,0.2); border-color:#00a8ff; color:#70d4ff;" title="Open Maps Demo Key Generator">DEMO KEY</button>
+        </div>
+        <div style="font-size:11px; color:#79a896; line-height:1.4;">
+          Zero-cost prototyping: Click <b>DEMO KEY</b> to obtain the official Google Maps Demo Key, or paste your Google Cloud project key. Keys are securely stored only in your browser (<code>localStorage</code>). When no key is provided, the simulation runs the high-performance offline tactical moving map.
+        </div>
       </div>
     </div>
   </div>
@@ -1730,6 +2122,595 @@
     window.sound = sound;
 
     // =========================================================================
+
+    // =========================================================================
+    // MISSION THEATERS & GEODETIC COORDINATE REFERENCE SYSTEM
+    // =========================================================================
+    const MISSION_THEATERS = {
+      NELLIS: {
+        code: 'KLSV',
+        name: 'Nellis AFB / NTTR (Nevada)',
+        shortName: 'NELLIS AFB',
+        lat0: 36.236,
+        lon0: -115.034,
+        alt0: 570.0,
+        rwyHeadingDeg: 34.0,
+        runwayLengthM: 3060,
+        spawnPos: { x: 0, y: 46.5, z: 1200 },
+        spawnHeading: 0,
+        spawnSpeed: 0,
+        waypoints: [
+          { name: 'WP1: BROWNS PEAK', lat: 36.310, lon: -115.120, x: -7500, z: -8200 },
+          { name: 'WP2: PAHRANAGAT RANGE', lat: 36.450, lon: -115.220, x: -16500, z: -23800 },
+          { name: 'WP3: DREAMLAND SECTOR', lat: 36.580, lon: -115.350, x: -28000, z: -38200 }
+        ],
+        samThreats: [
+          { name: 'SAM-1 (RANGE 63 SA-10)', lat: 36.380, lon: -114.950, x: 7500, z: -16000, radiusM: 9500 },
+          { name: 'SAM-2 (TOLICHA RADAR)', lat: 36.510, lon: -115.110, x: -6700, z: -30500, radiusM: 11000 }
+        ]
+      },
+      MIRAMAR: {
+        code: 'KMCAS',
+        name: 'MCAS Miramar / San Diego',
+        shortName: 'MCAS MIRAMAR',
+        lat0: 32.868,
+        lon0: -117.143,
+        alt0: 145.0,
+        rwyHeadingDeg: 242.0,
+        runwayLengthM: 3650,
+        spawnPos: { x: 0, y: 46.5, z: 1200 },
+        spawnHeading: 0,
+        spawnSpeed: 0,
+        waypoints: [
+          { name: 'WP1: LA JOLLA RIDGE', lat: 32.850, lon: -117.270, x: -11800, z: 2000 },
+          { name: 'WP2: CORONADO ISLAND', lat: 32.700, lon: -117.200, x: -5300, z: 18600 },
+          { name: 'WP3: POINT LOMA RADAR', lat: 32.670, lon: -117.240, x: -9000, z: 22000 }
+        ],
+        samThreats: [
+          { name: 'SAM-1 (BORDER SA-15)', lat: 32.540, lon: -117.020, x: 11500, z: 36400, radiusM: 8000 }
+        ]
+      },
+      DEATH_VALLEY: {
+        code: 'JEDI',
+        name: 'Star Wars Canyon (Death Valley)',
+        shortName: 'STAR WARS CYN',
+        lat0: 36.353,
+        lon0: -117.550,
+        alt0: 1280.0,
+        rwyHeadingDeg: 110.0,
+        runwayLengthM: 2000,
+        spawnPos: { x: -4000, y: 420.0, z: -1000 },
+        spawnHeading: 1.92,
+        spawnSpeed: 420,
+        waypoints: [
+          { name: 'WP1: FATHER CROWLEY', lat: 36.353, lon: -117.550, x: 0, z: 0 },
+          { name: 'WP2: CANYON ENTRY', lat: 36.340, lon: -117.520, x: 2700, z: 1450 },
+          { name: 'WP3: PANAMINT DROP', lat: 36.310, lon: -117.440, x: 9800, z: 4780 }
+        ],
+        samThreats: [
+          { name: 'SAM-1 (PANAMINT SA-19)', lat: 36.280, lon: -117.380, x: 15200, z: 8100, radiusM: 6500 }
+        ]
+      },
+      EDWARDS: {
+        code: 'KEDW',
+        name: 'Edwards AFB / Rogers Dry Lake',
+        shortName: 'EDWARDS AFB',
+        lat0: 34.905,
+        lon0: -117.883,
+        alt0: 702.0,
+        rwyHeadingDeg: 225.0,
+        runwayLengthM: 4570,
+        spawnPos: { x: 0, y: 46.5, z: 1400 },
+        spawnHeading: 0,
+        spawnSpeed: 0,
+        waypoints: [
+          { name: 'WP1: ROGERS LAKEBED', lat: 34.950, lon: -117.850, x: 3000, z: -5000 },
+          { name: 'WP2: ROSAMOND TEST CORRIDOR', lat: 34.850, lon: -118.050, x: -15200, z: 6100 },
+          { name: 'WP3: MOJAVE MACH CORRIDOR', lat: 35.050, lon: -117.700, x: 16700, z: -16100 }
+        ],
+        samThreats: [
+          { name: 'RADAR-1 (AIR FORCE TEST SENSOR)', lat: 34.920, lon: -117.800, x: 7500, z: -1670, radiusM: 9000 }
+        ]
+      },
+      ISLAND: {
+        code: 'SANDBOX',
+        name: 'Pacific Archipelago (Sandbox)',
+        shortName: 'ARCHIPELAGO',
+        lat0: 21.306,
+        lon0: -157.858,
+        alt0: 36.5,
+        rwyHeadingDeg: 0.0,
+        runwayLengthM: 3000,
+        spawnPos: { x: 0, y: 46.5, z: 1200 },
+        spawnHeading: 0,
+        spawnSpeed: 0,
+        waypoints: [
+          { name: 'WP1: NORTH PEAK RADAR', lat: 21.350, lon: -157.858, x: 0, z: -4890 },
+          { name: 'WP2: CARRIER BATTLE GROUP', lat: 21.242, lon: -157.800, x: 6500, z: 7100 },
+          { name: 'WP3: EAST HARBOR ENTRY', lat: 21.320, lon: -157.780, x: 8600, z: -1550 }
+        ],
+        samThreats: [
+          { name: 'SAM-1 (ISLAND RED DEFENSE)', lat: 21.340, lon: -157.880, x: -2400, z: -3780, radiusM: 7000 }
+        ]
+      }
+    };
+
+    // =========================================================================
+    // TACTICAL MOVING MAP (TSD / PCD) CONTROLLER
+    // =========================================================================
+    class TacticalMovingMap {
+      constructor(app) {
+        this.app = app;
+        this.currentTheaterKey = 'NELLIS';
+        this.currentGPS = { lat: 36.236, lon: -115.034, altFt: 1870 };
+        this.currentHeading = 0;
+        this.isPortalOpen = true;
+        this.isMinimized = false;
+        this.trackUpMode = true;
+        this.mapMode = 'VEC';
+        this.isGoogleMapsActive = false;
+        this.googleMap = null;
+        this.ownshipMarker = null;
+        this.samCircles = [];
+        this.flightPolyline = null;
+        this.lastMapUpdateTime = 0;
+
+        this.portalEl = document.getElementById('tactical-mfd-portal');
+        this.gmapContainer = document.getElementById('gmap-pcd-container');
+        this.offlineCanvas = document.getElementById('offline-pcd-canvas');
+        this.offlineCtx = this.offlineCanvas ? this.offlineCanvas.getContext('2d') : null;
+        this.ownshipIcon = document.getElementById('mfd-ownship-icon');
+        this.theaterNameEl = document.getElementById('mfd-theater-name');
+        this.gpsCoordsEl = document.getElementById('mfd-gps-coords');
+        this.navHdgEl = document.getElementById('mfd-nav-hdg');
+        this.navAltEl = document.getElementById('mfd-nav-alt');
+        this.steerpointEl = document.getElementById('mfd-steerpoint-info');
+        this.statusPill = document.getElementById('gmap-status-pill');
+        this.attributionEl = document.getElementById('mfd-attribution-tag');
+
+        this.setupControls();
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlKey = urlParams.get('gmap_key');
+        const storedKey = localStorage.getItem('f35_gmap_api_key');
+        const initialKey = urlKey || storedKey;
+        if (initialKey) {
+          const inputEl = document.getElementById('gmap-api-key-input');
+          if (inputEl) inputEl.value = initialKey;
+          this.initGoogleMap(initialKey);
+        }
+      }
+
+      setupControls() {
+        const btnTrk = document.getElementById('mfd-btn-trk');
+        if (btnTrk) {
+          btnTrk.addEventListener('click', () => {
+            this.trackUpMode = !this.trackUpMode;
+            btnTrk.innerText = this.trackUpMode ? 'TRK-UP' : 'N-UP';
+            btnTrk.classList.toggle('active', this.trackUpMode);
+          });
+        }
+
+        const btnMode = document.getElementById('mfd-btn-mode');
+        if (btnMode) {
+          btnMode.addEventListener('click', () => {
+            if (this.mapMode === 'VEC') this.mapMode = 'SAT';
+            else if (this.mapMode === 'SAT') this.mapMode = 'FLIR';
+            else this.mapMode = 'VEC';
+            btnMode.innerText = this.mapMode;
+            if (this.googleMap) {
+              if (this.mapMode === 'SAT') {
+                this.googleMap.setMapTypeId('hybrid');
+              } else {
+                this.googleMap.setMapTypeId('roadmap');
+              }
+            }
+          });
+        }
+
+        const btnTheater = document.getElementById('mfd-btn-theater');
+        if (btnTheater) {
+          btnTheater.addEventListener('click', () => {
+            const modal = document.getElementById('theater-modal');
+            if (modal) modal.classList.add('open');
+          });
+        }
+
+        const btnMin = document.getElementById('mfd-btn-min');
+        if (btnMin) {
+          btnMin.addEventListener('click', () => {
+            this.isMinimized = !this.isMinimized;
+            if (this.portalEl) this.portalEl.classList.toggle('minimized', this.isMinimized);
+            btnMin.innerText = this.isMinimized ? '+' : '_';
+          });
+        }
+
+        const btnClose = document.getElementById('mfd-btn-close');
+        if (btnClose) {
+          btnClose.addEventListener('click', () => {
+            this.togglePortal(false);
+          });
+        }
+
+        const saveKeyBtn = document.getElementById('save-api-key-btn');
+        if (saveKeyBtn) {
+          saveKeyBtn.addEventListener('click', () => {
+            const keyInput = document.getElementById('gmap-api-key-input');
+            const key = keyInput ? keyInput.value.trim() : '';
+            if (key) {
+              localStorage.setItem('f35_gmap_api_key', key);
+              this.initGoogleMap(key);
+            } else {
+              localStorage.removeItem('f35_gmap_api_key');
+              this.disableGoogleMap();
+            }
+          });
+        }
+
+        const demoKeyBtn = document.getElementById('demo-key-btn');
+        if (demoKeyBtn) {
+          demoKeyBtn.addEventListener('click', () => {
+            window.open('https://mapsplatform.google.com/maps-demo-key?utm_campaign=gmp_git_agentskills_v1', '_blank');
+          });
+        }
+      }
+
+      togglePortal(forceState) {
+        if (typeof forceState === 'boolean') {
+          this.isPortalOpen = forceState;
+        } else {
+          this.isPortalOpen = !this.isPortalOpen;
+        }
+        if (this.portalEl) {
+          this.portalEl.classList.toggle('closed', !this.isPortalOpen);
+        }
+        const mapToggleBtn = document.getElementById('map-toggle-btn');
+        if (mapToggleBtn) {
+          mapToggleBtn.classList.toggle('active', this.isPortalOpen);
+        }
+      }
+
+      setTheater(theaterKey) {
+        if (!MISSION_THEATERS[theaterKey]) return;
+        this.currentTheaterKey = theaterKey;
+        const th = MISSION_THEATERS[theaterKey];
+        if (this.theaterNameEl) {
+          this.theaterNameEl.innerText = `${th.shortName} (${th.code})`;
+        }
+        if (this.isGoogleMapsActive && this.googleMap) {
+          this.updateGoogleMapsTheaterElements();
+          this.googleMap.setCenter({ lat: th.lat0, lng: th.lon0 });
+          this.googleMap.setZoom(12);
+        }
+      }
+
+      initGoogleMap(apiKey) {
+        if (!apiKey) return;
+        if (this.statusPill) {
+          this.statusPill.innerText = 'STATUS: CONNECTING...';
+          this.statusPill.style.color = '#ffaa00';
+          this.statusPill.style.borderColor = '#ffaa00';
+        }
+
+        const scriptId = 'google-maps-js-sdk';
+        if (!document.getElementById(scriptId)) {
+          const script = document.createElement('script');
+          script.id = scriptId;
+          const params = new URLSearchParams({
+            key: apiKey,
+            v: 'weekly',
+            solution_channel: 'gmp_git_agentskills_v1'
+          });
+          script.src = `https://maps.googleapis.com/maps/api/js?${params.toString()}`;
+          script.async = true;
+          script.defer = true;
+          script.onload = () => {
+            this.onGoogleMapsLoaded();
+          };
+          script.onerror = () => {
+            this.onGoogleMapsError();
+          };
+          document.head.appendChild(script);
+        } else if (window.google && window.google.maps) {
+          this.onGoogleMapsLoaded();
+        }
+      }
+
+      onGoogleMapsLoaded() {
+        if (!window.google || !window.google.maps) {
+          this.onGoogleMapsError();
+          return;
+        }
+
+        const th = MISSION_THEATERS[this.currentTheaterKey];
+        this.isGoogleMapsActive = true;
+        if (this.gmapContainer) this.gmapContainer.style.display = 'block';
+        if (this.offlineCanvas) this.offlineCanvas.style.display = 'none';
+
+        if (this.statusPill) {
+          this.statusPill.innerText = 'STATUS: ONLINE (GOOGLE MAPS ACTIVE)';
+          this.statusPill.style.color = '#00ff77';
+          this.statusPill.style.borderColor = '#00ff77';
+        }
+        if (this.attributionEl) {
+          this.attributionEl.innerText = 'GOOGLE MAPS PLATFORM (ONLINE)';
+        }
+
+        const darkStyles = [
+          { elementType: 'geometry', stylers: [{ color: '#080f14' }] },
+          { elementType: 'labels.text.stroke', stylers: [{ color: '#04080c' }] },
+          { elementType: 'labels.text.fill', stylers: [{ color: '#00ff77' }] },
+          { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+          { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+          { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#112a20' }] },
+          { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#0c1d16' }] },
+          { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#53806e' }] },
+          { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#041422' }] },
+          { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#00a8cc' }] }
+        ];
+
+        this.googleMap = new google.maps.Map(this.gmapContainer, {
+          center: { lat: th.lat0, lng: th.lon0 },
+          zoom: 12,
+          disableDefaultUI: true,
+          zoomControl: true,
+          mapTypeId: (this.mapMode === 'SAT') ? 'hybrid' : 'roadmap',
+          styles: darkStyles
+        });
+
+        this.updateGoogleMapsTheaterElements();
+      }
+
+      updateGoogleMapsTheaterElements() {
+        if (!this.googleMap || !window.google || !window.google.maps) return;
+
+        if (this.samCircles) {
+          this.samCircles.forEach(c => c.setMap(null));
+          this.samCircles = [];
+        }
+        if (this.flightPolyline) {
+          this.flightPolyline.setMap(null);
+          this.flightPolyline = null;
+        }
+
+        const th = MISSION_THEATERS[this.currentTheaterKey];
+
+        if (th.waypoints && th.waypoints.length) {
+          const path = [
+            { lat: th.lat0, lng: th.lon0 },
+            ...th.waypoints.map(w => ({ lat: w.lat, lng: w.lon }))
+          ];
+          this.flightPolyline = new google.maps.Polyline({
+            path: path,
+            geodesic: true,
+            strokeColor: '#00e5ff',
+            strokeOpacity: 0.8,
+            strokeWeight: 2,
+            map: this.googleMap
+          });
+        }
+
+        if (th.samThreats) {
+          th.samThreats.forEach(sam => {
+            const circle = new google.maps.Circle({
+              strokeColor: '#ff2233',
+              strokeOpacity: 0.85,
+              strokeWeight: 1.5,
+              fillColor: '#ff2233',
+              fillOpacity: 0.15,
+              map: this.googleMap,
+              center: { lat: sam.lat, lng: sam.lon },
+              radius: sam.radiusM || 8000
+            });
+            this.samCircles.push(circle);
+          });
+        }
+      }
+
+      onGoogleMapsError() {
+        this.isGoogleMapsActive = false;
+        if (this.gmapContainer) this.gmapContainer.style.display = 'none';
+        if (this.offlineCanvas) this.offlineCanvas.style.display = 'block';
+        if (this.statusPill) {
+          this.statusPill.innerText = 'STATUS: OFFLINE (TACTICAL VECTOR)';
+          this.statusPill.style.color = '#00e5ff';
+          this.statusPill.style.borderColor = '#00e5ff';
+        }
+        if (this.attributionEl) {
+          this.attributionEl.innerText = 'OFFLINE TACTICAL VECTOR TSD';
+        }
+      }
+
+      disableGoogleMap() {
+        this.onGoogleMapsError();
+      }
+
+      computeGPS(x, y, z) {
+        const th = MISSION_THEATERS[this.currentTheaterKey];
+        const m_per_lat = 111139.0;
+        const m_per_lon = 111139.0 * Math.cos(th.lat0 * (Math.PI / 180));
+        const lat = th.lat0 + (-z) / m_per_lat;
+        const lon = th.lon0 + x / m_per_lon;
+        const altM = th.alt0 + y;
+        const altFt = altM * 3.28084;
+        return { lat, lon, altM, altFt };
+      }
+
+      update(physics, targets) {
+        if (!physics) return;
+
+        const jetPos = physics.position;
+        const gps = this.computeGPS(jetPos.x, jetPos.y, jetPos.z);
+        this.currentGPS = gps;
+
+        const euler = new THREE.Euler().setFromQuaternion(physics.quaternion, 'YXZ');
+        let hdgDeg = Math.round((-euler.y * (180 / Math.PI)) % 360);
+        if (hdgDeg < 0) hdgDeg += 360;
+        this.currentHeading = hdgDeg;
+
+        const latStr = `${Math.floor(Math.abs(gps.lat))}°${Math.floor((Math.abs(gps.lat)%1)*60)}'${Math.floor(((Math.abs(gps.lat)%1)*3600)%60)}"${gps.lat >= 0 ? 'N' : 'S'}`;
+        const lonStr = `${Math.floor(Math.abs(gps.lon))}°${Math.floor((Math.abs(gps.lon)%1)*60)}'${Math.floor(((Math.abs(gps.lon)%1)*3600)%60)}"${gps.lon >= 0 ? 'E' : 'W'}`;
+
+        if (this.gpsCoordsEl) this.gpsCoordsEl.innerText = `GPS: ${latStr} ${lonStr}`;
+        if (this.navHdgEl) this.navHdgEl.innerText = `HDG: ${String(hdgDeg).padStart(3, '0')}°`;
+        if (this.navAltEl) this.navAltEl.innerText = `ALT: ${Math.round(gps.altFt).toLocaleString()} FT`;
+
+        const th = MISSION_THEATERS[this.currentTheaterKey];
+        if (th.waypoints && th.waypoints.length && this.steerpointEl) {
+          let nearestWp = th.waypoints[0];
+          let minDist = 999999;
+          for (const wp of th.waypoints) {
+            const d = Math.hypot(wp.x - jetPos.x, wp.z - jetPos.z);
+            if (d < minDist) {
+              minDist = d;
+              nearestWp = wp;
+            }
+          }
+          const distNm = (minDist / 1852).toFixed(1);
+          this.steerpointEl.innerText = `NEXT: ${nearestWp.name} | RNG: ${distNm} NM`;
+        }
+
+        if (this.ownshipIcon) {
+          const rot = this.trackUpMode ? 0 : hdgDeg;
+          this.ownshipIcon.style.transform = `rotate(${rot}deg)`;
+        }
+
+        const now = performance.now();
+
+        if (this.isGoogleMapsActive && this.googleMap) {
+          if (now - this.lastMapUpdateTime > 65) {
+            this.lastMapUpdateTime = now;
+            this.googleMap.setCenter({ lat: gps.lat, lng: gps.lon });
+          }
+        } else {
+          this.renderOfflineCanvas(jetPos, hdgDeg, th, targets);
+        }
+      }
+
+      renderOfflineCanvas(jetPos, hdgDeg, th, targets) {
+        if (!this.offlineCtx || !this.offlineCanvas) return;
+        const ctx = this.offlineCtx;
+        const w = this.offlineCanvas.width;
+        const h = this.offlineCanvas.height;
+        const cx = w / 2;
+        const cy = h / 2;
+        const scale = 0.018;
+
+        ctx.fillStyle = '#060f15';
+        ctx.fillRect(0, 0, w, h);
+
+        ctx.save();
+        ctx.translate(cx, cy);
+        if (this.trackUpMode) {
+          ctx.rotate(hdgDeg * (Math.PI / 180));
+        }
+
+        // 1. Grid Graticule (every 2,000 meters)
+        ctx.strokeStyle = '#0e241c';
+        ctx.lineWidth = 1;
+        const gridSize = 2000 * scale;
+        const offX = -(jetPos.x * scale) % gridSize;
+        const offZ = -(jetPos.z * scale) % gridSize;
+        ctx.beginPath();
+        for (let x = -w; x <= w; x += gridSize) {
+          ctx.moveTo(x + offX, -h);
+          ctx.lineTo(x + offX, h);
+        }
+        for (let y = -h; y <= h; y += gridSize) {
+          ctx.moveTo(-w, y + offZ);
+          ctx.lineTo(w, y + offZ);
+        }
+        ctx.stroke();
+
+        // 2. Airfield Runway Vector
+        ctx.strokeStyle = '#00ff77';
+        ctx.lineWidth = 3;
+        const rwyLen = (th.runwayLengthM || 3000) * scale;
+        const rwyX = -jetPos.x * scale;
+        const rwyZ = -jetPos.z * scale;
+        ctx.beginPath();
+        ctx.moveTo(rwyX, rwyZ - rwyLen / 2);
+        ctx.lineTo(rwyX, rwyZ + rwyLen / 2);
+        ctx.stroke();
+
+        // 3. SAM Threat Envelopes
+        if (th.samThreats) {
+          ctx.fillStyle = 'rgba(255, 34, 51, 0.12)';
+          ctx.strokeStyle = 'rgba(255, 34, 51, 0.7)';
+          ctx.lineWidth = 1.5;
+          for (const sam of th.samThreats) {
+            const sx = (sam.x - jetPos.x) * scale;
+            const sz = (sam.z - jetPos.z) * scale;
+            const srad = (sam.radiusM || 8000) * scale;
+            ctx.beginPath();
+            ctx.arc(sx, sz, srad, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = '#ff4455';
+            ctx.font = '9px "Share Tech Mono", monospace';
+            ctx.fillText(sam.name, sx + 6, sz - 6);
+          }
+        }
+
+        // 4. Waypoint Route & Steerpoints
+        if (th.waypoints && th.waypoints.length) {
+          ctx.strokeStyle = '#00e5ff';
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([4, 4]);
+          ctx.beginPath();
+          ctx.moveTo(-jetPos.x * scale, -jetPos.z * scale);
+          for (const wp of th.waypoints) {
+            ctx.lineTo((wp.x - jetPos.x) * scale, (wp.z - jetPos.z) * scale);
+          }
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          ctx.fillStyle = '#00e5ff';
+          ctx.font = '10px "Share Tech Mono", monospace';
+          for (let i = 0; i < th.waypoints.length; i++) {
+            const wp = th.waypoints[i];
+            const wx = (wp.x - jetPos.x) * scale;
+            const wz = (wp.z - jetPos.z) * scale;
+            ctx.strokeStyle = '#00e5ff';
+            ctx.strokeRect(wx - 4, wz - 4, 8, 8);
+            ctx.fillText(`WP${i+1}: ${wp.name.split(':')[1] || wp.name}`, wx + 7, wz + 3);
+          }
+        }
+
+        // 5. Radar Targets
+        if (targets && targets.length) {
+          for (const tgt of targets) {
+            if (tgt.destroyed) continue;
+            const tx = (tgt.mesh.position.x - jetPos.x) * scale;
+            const tz = (tgt.mesh.position.z - jetPos.z) * scale;
+            ctx.fillStyle = tgt.isHostile ? '#ff3344' : '#00e5ff';
+            ctx.fillRect(tx - 3, tz - 3, 6, 6);
+          }
+        }
+
+        ctx.restore();
+
+        // 6. Range Rings
+        const nm5 = 5 * 1852 * scale;
+        const nm10 = 10 * 1852 * scale;
+        ctx.strokeStyle = 'rgba(0, 255, 119, 0.25)';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(cx, cy, nm5, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(cx, cy, nm10, 0, Math.PI * 2); ctx.stroke();
+
+        ctx.fillStyle = '#4e7a68';
+        ctx.font = '9px "Share Tech Mono", monospace';
+        ctx.fillText('5 NM', cx + nm5 + 3, cy - 3);
+        ctx.fillText('10 NM', cx + nm10 + 3, cy - 3);
+
+        if (this.trackUpMode) {
+          ctx.fillStyle = '#00ff77';
+          ctx.fillText(`TRK ${String(hdgDeg).padStart(3, '0')}°`, cx - 18, 16);
+        }
+      }
+    }
+
     // 3. PANORAMIC COCKPIT DISPLAY (PCD) AVIONICS ENGINE
     // =========================================================================
     class CockpitPCDDisplay {
@@ -1742,7 +2723,7 @@
         this.radarSweep = 0;
       }
 
-      update(state, targets, beastMode) {
+      update(state, targets, beastMode, theaterKey, tacticalMap) {
         const ctx = this.ctx;
         ctx.fillStyle = '#040b10';
         ctx.fillRect(0, 0, 512, 256);
@@ -1754,21 +2735,28 @@
         ctx.strokeRect(172, 4, 168, 248);
         ctx.strokeRect(344, 4, 164, 248);
 
+        const theater = MISSION_THEATERS[theaterKey || 'NELLIS'] || MISSION_THEATERS.NELLIS;
+        const gps = tacticalMap ? tacticalMap.currentGPS : { lat: theater.lat0, lon: theater.lon0, altFt: theater.alt0 * 3.28 };
+
         // 1. Left Telemetry & Stores
         ctx.fillStyle = '#00ff77';
         ctx.font = '11px "Share Tech Mono", monospace';
-        ctx.fillText('SYS / STORES', 14, 22);
-        ctx.fillText(`ENG RPM: ${Math.round(state.throttle * 100)}%`, 14, 46);
-        ctx.fillText(`CORE TEMP: ${Math.round(480 + state.throttle * 320)}C`, 14, 66);
-        ctx.fillText(`FUEL: 12,450 LBS`, 14, 86);
-        ctx.fillText(`GUN: ${state.ammo} RDS`, 14, 116);
-        ctx.fillText(`AMRAAM: ${state.missilesLeft} / 4`, 14, 136);
-        ctx.fillText(`SIDEWINDER: 2 / 2`, 14, 156);
-        ctx.fillText(`GEAR: ${state.gearDown ? 'DOWN' : 'UP'}`, 14, 196);
-        ctx.fillText(`BEAST: ${beastMode ? 'ACTIVE' : 'STEALTH'}`, 14, 212);
+        ctx.fillText('SYS / STORES', 14, 20);
+        ctx.fillText(`TH: ${theater.shortName}`, 14, 36);
+        ctx.fillText(`ENG RPM: ${Math.round(state.throttle * 100)}%`, 14, 52);
+        ctx.fillText(`CORE TEMP: ${Math.round(480 + state.throttle * 320)}C`, 14, 68);
+        ctx.fillText(`FUEL: 12,450 LBS`, 14, 84);
+        ctx.fillText(`GUN: ${state.ammo} RDS`, 14, 104);
+        ctx.fillText(`AMRAAM: ${state.missilesLeft} / 4`, 14, 120);
+        ctx.fillText(`SIDEWINDER: 2 / 2`, 14, 136);
+        ctx.fillText(`GEAR: ${state.gearDown ? 'DOWN' : 'UP'}`, 14, 156);
+        ctx.fillText(`BEAST: ${beastMode ? 'ACTIVE' : 'STEALTH'}`, 14, 172);
         ctx.fillStyle = state.autoGcasActive ? '#ff2222' : (state.autoGcasArmed ? '#00ff77' : '#778899');
-        ctx.fillText(`GCAS: ${state.autoGcasActive ? 'PULL-UP!' : (state.autoGcasArmed ? 'ARMED' : 'OFF')}`, 14, 228);
-        ctx.fillText(`FBW: G-LIM [9G]`, 14, 242);
+        ctx.fillText(`GCAS: ${state.autoGcasActive ? 'PULL-UP!' : (state.autoGcasArmed ? 'ARMED' : 'OFF')}`, 14, 188);
+        ctx.fillText(`FBW: G-LIM [9G]`, 14, 204);
+        ctx.fillStyle = '#00e5ff';
+        ctx.fillText(`GPS: ${gps.lat.toFixed(3)}N ${Math.abs(gps.lon).toFixed(3)}W`, 14, 224);
+        ctx.fillText(`ALT: ${Math.round(gps.altFt)} FT MSL`, 14, 240);
         ctx.fillStyle = '#00ff77';
 
         // 2. Center Synthetic ADI
@@ -1800,31 +2788,71 @@
         ctx.lineWidth = 2;
         ctx.strokeRect(252, 124, 8, 8);
 
-        // 3. Right Tactical Radar
+        // 3. Right Tactical Radar & Moving Map
         ctx.fillStyle = '#00ff77';
-        ctx.fillText('TAC RADAR 30NM', 354, 22);
+        ctx.fillText(`TSD MAP: ${theater.code}`, 354, 20);
 
         const rx = 426;
-        const ry = 138;
-        const rRadius = 80;
+        const ry = 136;
+        const rRadius = 82;
 
         ctx.strokeStyle = '#0e4430';
         ctx.beginPath(); ctx.arc(rx, ry, rRadius, 0, Math.PI * 2); ctx.stroke();
-        ctx.beginPath(); ctx.arc(rx, ry, rRadius * 0.6, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(rx, ry, rRadius * 0.66, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(rx, ry, rRadius * 0.33, 0, Math.PI * 2); ctx.stroke();
 
         this.radarSweep = (this.radarSweep + 0.05) % (Math.PI * 2);
-        ctx.strokeStyle = 'rgba(0, 255, 119, 0.7)';
+        ctx.strokeStyle = 'rgba(0, 255, 119, 0.6)';
         ctx.beginPath();
         ctx.moveTo(rx, ry);
         ctx.lineTo(rx + Math.cos(this.radarSweep) * rRadius, ry + Math.sin(this.radarSweep) * rRadius);
         ctx.stroke();
 
-        // Ownship symbol
+        // Waypoints on MFD
+        if (theater.waypoints) {
+          ctx.fillStyle = '#00e5ff';
+          ctx.font = '8px "Share Tech Mono", monospace';
+          const jetPos = state.position;
+          for (let i = 0; i < theater.waypoints.length; i++) {
+            const wp = theater.waypoints[i];
+            const dx = (wp.x - jetPos.x) / 380;
+            const dz = (wp.z - jetPos.z) / 380;
+            if (Math.hypot(dx, dz) < rRadius - 6) {
+              ctx.strokeStyle = '#00e5ff';
+              ctx.strokeRect(rx + dx - 3, ry + dz - 3, 6, 6);
+              ctx.fillText(`W${i+1}`, rx + dx + 5, ry + dz + 3);
+            }
+          }
+        }
+
+        // SAM threats on MFD
+        if (theater.samThreats) {
+          ctx.strokeStyle = 'rgba(255, 51, 68, 0.7)';
+          ctx.lineWidth = 1;
+          const jetPos = state.position;
+          for (const sam of theater.samThreats) {
+            const dx = (sam.x - jetPos.x) / 380;
+            const dz = (sam.z - jetPos.z) / 380;
+            const rad = (sam.radiusM || 8000) / 380;
+            if (Math.hypot(dx, dz) < rRadius + rad) {
+              ctx.beginPath();
+              ctx.arc(rx + dx, ry + dz, Math.min(rad, 45), 0, Math.PI * 2);
+              ctx.stroke();
+            }
+          }
+        }
+
+        // Ownship symbol with heading
+        const euler = new THREE.Euler().setFromQuaternion(state.quaternion, 'YXZ');
+        ctx.save();
+        ctx.translate(rx, ry);
+        ctx.rotate(-euler.y);
         ctx.fillStyle = '#00ff77';
         ctx.beginPath();
-        ctx.moveTo(rx, ry - 6); ctx.lineTo(rx - 5, ry + 5); ctx.lineTo(rx + 5, ry + 5);
+        ctx.moveTo(0, -7); ctx.lineTo(-5, 6); ctx.lineTo(0, 3); ctx.lineTo(5, 6);
         ctx.closePath();
         ctx.fill();
+        ctx.restore();
 
         if (targets && targets.length) {
           const jetPos = state.position;
@@ -4324,6 +5352,7 @@
         this.physics.app = this;
         this.combat = new CombatSystem(this.scene, this.aircraft, this.environment);
         this.hud = new HUDDisplay('hud-canvas', this.physics, this.environment, this.combat);
+        this.tacticalMap = new TacticalMovingMap(this);
 
         this.crashDebris = [];
         this.cameraShake = 0;
@@ -4428,8 +5457,10 @@
           if (e.code === 'Space') this.launchMissile();
           if (e.code === 'KeyR') this.resetAircraft();
           if (e.code === 'KeyH') this.toggleHelp();
-          if (e.code === 'KeyM') this.toggleAudio();
-          if (e.code === 'KeyT') this.toggleTimeOfDay();
+          if (e.code === 'KeyM') this.toggleTacticalMap();
+          if (e.code === 'KeyT') this.toggleTheaterModal();
+          if (e.code === 'KeyU') this.toggleAudio();
+          if (e.code === 'KeyY') this.toggleTimeOfDay();
           if (e.code === 'KeyV') this.cycleCamera();
           if (e.code === 'Digit1') this.setCamera(0);
           if (e.code === 'Digit2') this.setCamera(1);
@@ -4630,6 +5661,67 @@
             if (h) h.style.display = 'none';
           });
         }
+      }
+
+      toggleTacticalMap() {
+        if (this.tacticalMap) {
+          this.tacticalMap.togglePortal();
+        }
+      }
+
+      toggleTheaterModal() {
+        const modal = document.getElementById('theater-modal');
+        if (modal) {
+          modal.classList.toggle('open');
+        }
+      }
+
+      switchTheater(theaterKey) {
+        if (!this.tacticalMap) return;
+        this.tacticalMap.setTheater(theaterKey);
+        const th = MISSION_THEATERS[theaterKey];
+        if (!th) return;
+
+        this.clearCrashDebris();
+        this.aircraft.innerModel.visible = true;
+        this.physics.isCrashed = false;
+        this.physics.velocity.set(0, 0, 0);
+        this.physics.angularVelocity.set(0, 0, 0);
+
+        if (th.spawnPos) {
+          this.physics.position.set(th.spawnPos.x, th.spawnPos.y, th.spawnPos.z);
+        } else {
+          this.physics.position.set(0, 46.5, 1200);
+        }
+
+        const targetHeading = th.spawnHeading || 0;
+        this.physics.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), targetHeading);
+
+        if (th.spawnSpeed && th.spawnSpeed > 0) {
+          this.physics.throttle = 0.85;
+          this.physics.speedKnots = th.spawnSpeed;
+          const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(this.physics.quaternion);
+          this.physics.velocity.copy(fwd.multiplyScalar(th.spawnSpeed * 0.514444));
+          this.physics.gearDown = false;
+        } else {
+          this.physics.throttle = 0.0;
+          this.physics.speedKnots = 0.0;
+          this.physics.gearDown = true;
+        }
+
+        if (this.domGearBtn) {
+          this.domGearBtn.innerText = this.physics.gearDown ? 'GEAR: DOWN' : 'GEAR: UP';
+          this.domGearBtn.classList.toggle('active', this.physics.gearDown);
+        }
+
+        document.querySelectorAll('.theater-card').forEach(card => {
+          card.classList.toggle('selected', card.dataset.theater === theaterKey);
+        });
+
+        const modal = document.getElementById('theater-modal');
+        if (modal) modal.classList.remove('open');
+
+        sound.speakAlert('THEATER LOADED ' + th.code);
       }
 
       toggleAudio() {
@@ -5110,7 +6202,10 @@
         this.combat.update(dt);
         this.environment.update(dt);
 
-        this.aircraft.pcd.update(this.physics, this.environment.targets, this.aircraft.beastMode);
+        if (this.tacticalMap) {
+          this.tacticalMap.update(this.physics, this.environment.targets);
+        }
+        this.aircraft.pcd.update(this.physics, this.environment.targets, this.aircraft.beastMode, this.tacticalMap ? this.tacticalMap.currentTheaterKey : 'NELLIS', this.tacticalMap);
         this.updateCamera();
         this.updateGForceOverlay();
 
