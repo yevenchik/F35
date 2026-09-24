@@ -2846,7 +2846,6 @@ with open(output_path, "w", encoding="utf-8") as f:
         }
 
         // Ownship symbol with heading
-        const euler = new THREE.Euler().setFromQuaternion(state.quaternion, 'YXZ');
         ctx.save();
         ctx.translate(rx, ry);
         ctx.rotate(-euler.y);
@@ -5507,6 +5506,25 @@ with open(output_path, "w", encoding="utf-8") as f:
         }
         document.getElementById('help-btn').addEventListener('click', () => this.toggleHelp());
         document.getElementById('close-help-btn').addEventListener('click', () => this.toggleHelp());
+
+        const mapToggleBtn = document.getElementById('map-toggle-btn');
+        if (mapToggleBtn) {
+          mapToggleBtn.addEventListener('click', () => this.toggleTacticalMap());
+        }
+        const theaterToggleBtn = document.getElementById('theater-toggle-btn');
+        if (theaterToggleBtn) {
+          theaterToggleBtn.addEventListener('click', () => this.toggleTheaterModal());
+        }
+        const closeTheaterBtn = document.getElementById('close-theater-btn');
+        if (closeTheaterBtn) {
+          closeTheaterBtn.addEventListener('click', () => this.toggleTheaterModal());
+        }
+        document.querySelectorAll('.theater-card').forEach(card => {
+          card.addEventListener('click', () => {
+            const key = card.dataset.theater;
+            if (key) this.switchTheater(key);
+          });
+        });
 
         const camBtns = document.querySelectorAll('.camera-switcher button');
         camBtns.forEach((btn) => {
