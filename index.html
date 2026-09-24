@@ -8,6 +8,12 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
   
+  <script>
+    window.__ERRORS__ = [];
+    window.onerror = function(msg, url, line, col, err) {
+      window.__ERRORS__.push({ msg: msg, line: line, col: col, stack: err ? err.stack : '' });
+    };
+  </script>
   <!-- Three.js Core & Controls -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -2290,9 +2296,9 @@
         alt0: 30.0,
         rwyHeadingDeg: 12.0,
         runwayLengthM: 2500,
-        spawnPos: { x: 0, y: 46.5, z: 1100 },
+        spawnPos: { x: 0, y: 1850, z: 3200 },
         spawnHeading: 0,
-        spawnSpeed: 0,
+        spawnSpeed: 480,
         waypoints: [
           { name: 'WP1: KHASAB FJORD PASS', lat: 26.230, lon: 56.260, x: 2000, z: -6550 },
           { name: 'WP2: TSS CHOKEPOINT SHIPPING LANE', lat: 26.350, lon: 56.450, x: 21000, z: -19890 },
@@ -3892,8 +3898,194 @@
         this.buildMilitaryAirbase();
         this.buildNightAirfieldLighting();
         this.buildCarrierStrikeGroup();
+        this.buildSupertankers();
         this.buildDestructibleTargets();
         this.buildAtmosphericClouds();
+        this.applyTheaterTerrain('HORMUZ');
+      }
+
+      buildSupertankers() {
+        this.supertankerGroup = new THREE.Group();
+
+        const buildVLCC = (name, x, z, heading) => {
+          const tanker = new THREE.Group();
+          tanker.position.set(x, 4.0, z);
+          tanker.rotation.y = heading;
+
+          // Red Underwater Hull
+          const redHullMat = new THREE.MeshStandardMaterial({ color: 0x992211, roughness: 0.7 });
+          const lowerHull = new THREE.Mesh(new THREE.BoxGeometry(58, 14, 320), redHullMat);
+          lowerHull.position.y = 5;
+          tanker.add(lowerHull);
+
+          // Black Freeboard Topsides
+          const blackHullMat = new THREE.MeshStandardMaterial({ color: 0x16181a, roughness: 0.5 });
+          const upperHull = new THREE.Mesh(new THREE.BoxGeometry(58, 12, 318), blackHullMat);
+          upperHull.position.y = 17;
+          tanker.add(upperHull);
+
+          // Green Cargo Weather Deck
+          const deckMat = new THREE.MeshStandardMaterial({ color: 0x243e32, roughness: 0.8 });
+          const deck = new THREE.Mesh(new THREE.PlaneGeometry(56, 314).rotateX(-Math.PI / 2), deckMat);
+          deck.position.y = 23.2;
+          tanker.add(deck);
+
+          // Central Cargo Piping Catwalk
+          const pipeMat = new THREE.MeshStandardMaterial({ color: 0x555c62, metalness: 0.7, roughness: 0.3 });
+          const manifold = new THREE.Mesh(new THREE.BoxGeometry(4.5, 3.5, 230), pipeMat);
+          manifold.position.set(0, 25.2, 20);
+          tanker.add(manifold);
+
+          // Aft Deckhouse Superstructure & Bridge Tower
+          const whiteMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee, roughness: 0.4 });
+          const bridge = new THREE.Mesh(new THREE.BoxGeometry(46, 26, 36), whiteMat);
+          bridge.position.set(0, 36, -118);
+          tanker.add(bridge);
+
+          // Panoramic Wheelhouse Bridge Windows
+          const glassMat = new THREE.MeshBasicMaterial({ color: 0x112233 });
+          const windows = new THREE.Mesh(new THREE.BoxGeometry(47, 4.5, 8), glassMat);
+          windows.position.set(0, 46.5, -108);
+          tanker.add(windows);
+
+          // Twin Exhaust Funnels (Red & Black)
+          const funnelMat = new THREE.MeshStandardMaterial({ color: 0xcc2222, roughness: 0.4 });
+          const lFunnel = new THREE.Mesh(new THREE.CylinderGeometry(2.5, 3.0, 16, 8), funnelMat);
+          lFunnel.position.set(-10, 52, -132);
+          tanker.add(lFunnel);
+
+          const rFunnel = new THREE.Mesh(new THREE.CylinderGeometry(2.5, 3.0, 16, 8), funnelMat);
+          rFunnel.position.set(10, 52, -132);
+          tanker.add(rFunnel);
+
+          // Wake foam trail behind ship
+          const wakeMat = new THREE.MeshBasicMaterial({ color: 0xccffff, transparent: true, opacity: 0.45 });
+          const wake = new THREE.Mesh(new THREE.PlaneGeometry(62, 380).rotateX(-Math.PI / 2), wakeMat);
+          wake.position.set(0, 0.4, 210);
+          tanker.add(wake);
+
+          this.supertankerGroup.add(tanker);
+
+          this.targets.push({
+            name: `PROTECTED: VLCC ${name}`,
+            mesh: tanker,
+            radius: 85,
+            isHostile: false,
+            destroyed: false
+          });
+        };
+
+        buildVLCC('AL-MUSANDAM STAR', 2100, -5800, 2.85); // Outbound shipping lane
+        buildVLCC('ARABIAN SENTINEL', -1800, -8400, -0.28); // Inbound shipping lane
+
+        this.scene.add(this.supertankerGroup);
+      }
+
+      applyTheaterTerrain(theaterKey) {
+        if (!this.terrain || !this.terrain.geometry) return;
+        const pos = this.terrain.geometry.attributes.position;
+        const colorAttr = this.terrain.geometry.attributes.color;
+        const isHormuz = (theaterKey === 'HORMUZ');
+        const isDesert = (theaterKey === 'NELLIS' || theaterKey === 'DEATH_VALLEY');
+        const color = new THREE.Color();
+
+        for (let i = 0; i < pos.count; i++) {
+          const x = pos.getX(i);
+          const z = pos.getZ(i);
+
+          let elev = 0;
+          if (isHormuz) {
+            // Musandam Fjord Canyons & Strait of Hormuz Topography
+            const inCanyon = (Math.abs(x) < 320) && (z > -3700 && z < 600);
+            const distFromCanyonAxis = Math.abs(x);
+            
+            // Fjord canyon walls rising up to 1400m
+            const fjordWalls = Math.min(1.0, Math.max(0, (distFromCanyonAxis - 280) / 1600));
+            const n1 = Math.sin(x * 0.0012) * Math.cos(z * 0.0012) * 320;
+            const n2 = Math.sin(x * 0.0032 + 0.8) * Math.cos(z * 0.0032 + 1.2) * 120;
+            const ridgeHeight = (650 + n1 + n2) * fjordWalls;
+
+            // To the north (z < -3800), open into the vast Strait of Hormuz
+            const inStrait = (z < -3800);
+            if (inStrait) {
+              // Deep strait waters with distant Iranian islands (Larak & Qeshm) at z < -8500
+              const distIsland = (z < -8500) ? Math.max(0, Math.sin(x * 0.0008) * 380 - 60) : -65;
+              elev = distIsland;
+            } else if (inCanyon) {
+              elev = 35.8; // Khasab Airbase runway level
+            } else {
+              elev = Math.max(36.0, 36.0 + ridgeHeight);
+            }
+
+            pos.setY(i, elev);
+
+            // Arid Limestone Desert Palette (Musandam / Arabia)
+            if (elev < 1.0) {
+              color.setHex(0x005a69); // Persian Gulf deep turquoise seabed
+            } else if (elev < 18) {
+              color.setHex(0xdfca9d); // Coastal sand spit / gravel
+            } else if (elev < 220) {
+              color.setHex(0xb87f48); // Warm sandstone / terracotta lower ridges
+            } else if (elev < 650) {
+              color.setHex(0x8a5932); // Sunbaked limestone canyon walls
+            } else {
+              color.setHex(0x563821); // Dark craggy limestone mountain peaks
+            }
+          } else {
+            // Standard island terrain
+            const d = Math.hypot(x, z + 2000);
+            const islandMask = Math.max(0, 1.0 - Math.pow(Math.min(1.0, d / 4800), 2));
+            const n1 = Math.sin(x * 0.0008) * Math.cos(z * 0.0008) * 160;
+            const n2 = Math.sin(x * 0.0022 + 1.2) * Math.cos(z * 0.0022 + 0.8) * 70;
+            const n3 = Math.sin(x * 0.005) * Math.cos(z * 0.005) * 25;
+            const landBase = (islandMask > 0.08) ? (160 * Math.pow(islandMask, 0.75)) : -55;
+            elev = landBase + (n1 + n2 + n3) * islandMask;
+            if (Math.abs(x) < 280 && Math.abs(z + 2000) < 1850) {
+              elev = 35.8;
+            } else if (islandMask <= 0.08) {
+              elev = -65.0;
+            }
+            pos.setY(i, elev);
+
+            if (elev < 0.5) color.setHex(0x0c2540);
+            else if (elev < 12) color.setHex(0xdcc79c);
+            else if (elev < 170) color.setHex(0x2d5a28);
+            else if (elev < 330) color.setHex(0x454e47);
+            else color.setHex(0xf0f5fa);
+          }
+
+          if (colorAttr) {
+            colorAttr.setXYZ(i, color.r, color.g, color.b);
+          }
+        }
+
+        pos.needsUpdate = true;
+        if (colorAttr) colorAttr.needsUpdate = true;
+        this.terrain.geometry.computeVertexNormals();
+
+        // Forest visibility
+        if (this.trunkMesh && this.leavesMesh) {
+          this.trunkMesh.visible = !isHormuz && !isDesert;
+          this.leavesMesh.visible = !isHormuz && !isDesert;
+        }
+
+        // Ocean color adjustment
+        if (this.oceanUniforms) {
+          if (isHormuz) {
+            this.oceanUniforms.shallowColor.value.setHex(0x00c4a7); // Radiant Persian Gulf turquoise
+            this.oceanUniforms.deepColor.value.setHex(0x073b52);
+            if (this.scene.fog) this.scene.fog.color.setHex(0xa9cfd9);
+          } else {
+            this.oceanUniforms.shallowColor.value.setHex(0x0a3c66);
+            this.oceanUniforms.deepColor.value.setHex(0x061c33);
+            if (this.scene.fog) this.scene.fog.color.setHex(0x8cbfe8);
+          }
+        }
+
+        // Supertanker convoy visibility
+        if (this.supertankerGroup) {
+          this.supertankerGroup.visible = isHormuz;
+        }
       }
 
       buildLightingAndSky() {
@@ -5829,6 +6021,7 @@
 
         this.setupEventListeners();
         this.setupUI();
+        this.switchTheater('HORMUZ');
         this.animate();
       }
 
@@ -6191,7 +6384,9 @@
         this.aircraft.innerModel.visible = true;
         this.physics.isCrashed = false;
         this.physics.velocity.set(0, 0, 0);
-        this.physics.angularVelocity.set(0, 0, 0);
+        this.physics.pitchInput = 0;
+        this.physics.rollInput = 0;
+        this.physics.yawInput = 0;
 
         if (th.spawnPos) {
           this.physics.position.set(th.spawnPos.x, th.spawnPos.y, th.spawnPos.z);
@@ -6202,11 +6397,15 @@
         const targetHeading = th.spawnHeading || 0;
         this.physics.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), targetHeading);
 
+        if (this.environment && this.environment.applyTheaterTerrain) {
+          this.environment.applyTheaterTerrain(theaterKey);
+        }
+
         if (this.combat && this.combat.adversary) {
           if (theaterKey === 'HORMUZ') {
-            this.combat.adversary.orbitCenter.set(2000, 2400, -6500);
-            this.combat.adversary.orbitRadius = 4800;
-            this.combat.samSitePos.set(30900, 220, -27600);
+            this.combat.adversary.orbitCenter.set(800, 2200, -6000);
+            this.combat.adversary.orbitRadius = 4000;
+            this.combat.samSitePos.set(3200, 240, -4200);
           } else {
             this.combat.adversary.orbitCenter.set(0, 1650, -3200);
             this.combat.adversary.orbitRadius = 3600;
@@ -6224,6 +6423,14 @@
           this.physics.throttle = 0.0;
           this.physics.speedKnots = 0.0;
           this.physics.gearDown = true;
+        }
+
+        if (this.camera && this.physics) {
+          const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(this.physics.quaternion);
+          const up = new THREE.Vector3(0, 1, 0).applyQuaternion(this.physics.quaternion);
+          const chasePos = this.physics.position.clone().sub(fwd.clone().multiplyScalar(16)).add(up.clone().multiplyScalar(3.2));
+          this.camera.position.copy(chasePos);
+          this.camera.lookAt(this.physics.position.clone().add(fwd.clone().multiplyScalar(40)));
         }
 
         if (this.domGearBtn) {
@@ -6521,6 +6728,20 @@
         this.clearCrashDebris();
         this.aircraft.innerModel.visible = true;
         this.physics.reset();
+        const currentTh = this.tacticalMap ? this.tacticalMap.currentTheaterKey : 'HORMUZ';
+        const thData = MISSION_THEATERS[currentTh] || MISSION_THEATERS.HORMUZ;
+        if (thData && thData.spawnPos) {
+          this.physics.position.set(thData.spawnPos.x, thData.spawnPos.y, thData.spawnPos.z);
+          const thHdg = thData.spawnHeading || 0;
+          this.physics.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), thHdg);
+          if (thData.spawnSpeed && thData.spawnSpeed > 0) {
+            this.physics.throttle = 0.85;
+            this.physics.speedKnots = thData.spawnSpeed;
+            const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(this.physics.quaternion);
+            this.physics.velocity.copy(fwd.multiplyScalar(thData.spawnSpeed * 0.514444));
+            this.physics.gearDown = false;
+          }
+        }
         const crashModal = document.getElementById('crash-modal');
         if (crashModal) crashModal.style.display = 'none';
         document.getElementById('master-warning').style.display = 'none';
@@ -6765,10 +6986,23 @@
       }
     }
 
-    // Launch simulation on DOM load
-    window.addEventListener('DOMContentLoaded', () => {
-      window.simulationApp = new App();
-    });
+    // Bulletproof simulation launch: immediate if DOM already ready, otherwise on DOMContentLoaded
+    function launchSimulation() {
+      if (!window.simulationApp) {
+        try {
+          window.simulationApp = new App();
+        } catch (err) {
+          window.__APP_ERROR__ = err.message + '\n' + err.stack;
+          console.error('CRITICAL APP INIT ERROR:', err);
+        }
+      }
+    }
+
+    if (document.readyState === 'loading') {
+      window.addEventListener('DOMContentLoaded', launchSimulation);
+    } else {
+      launchSimulation();
+    }
   </script>
 </body>
 </html>
