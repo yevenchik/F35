@@ -1187,7 +1187,7 @@ with open(output_path, "w", encoding="utf-8") as f:
     <div class="mfd-header" id="mfd-drag-header">
       <div class="mfd-title-group">
         <span class="mfd-badge">PCD-TSD</span>
-        <span class="mfd-title" id="mfd-theater-name">NELLIS AFB (KLSV)</span>
+        <span class="mfd-title" id="mfd-theater-name">STRAIT OF HORMUZ (OOKB)</span>
       </div>
       <div class="mfd-controls">
         <button class="mfd-btn-sm active" id="mfd-btn-trk" title="Toggle Track-Up / North-Up">TRK-UP</button>
@@ -1198,9 +1198,9 @@ with open(output_path, "w", encoding="utf-8") as f:
       </div>
     </div>
     <div class="mfd-telemetry-bar">
-      <span id="mfd-gps-coords">GPS: 36°14'10"N 115°02'02"W</span>
-      <span id="mfd-nav-hdg">HDG: 034°</span>
-      <span id="mfd-nav-alt">ALT: 1,870 FT</span>
+      <span id="mfd-gps-coords">GPS: 26°10'15"N 56°14'24"E</span>
+      <span id="mfd-nav-hdg">HDG: 012°</span>
+      <span id="mfd-nav-alt">ALT: 98 FT</span>
     </div>
     <div class="mfd-viewport-container">
       <div id="gmap-pcd-container"></div>
@@ -1214,7 +1214,7 @@ with open(output_path, "w", encoding="utf-8") as f:
       </div>
     </div>
     <div class="mfd-footer-bar">
-      <span id="mfd-steerpoint-info">NEXT WP: BROWNS PEAK | RNG: 8.4 NM</span>
+      <span id="mfd-steerpoint-info">NEXT: WP1: KHASAB FJORD PASS | RNG: 3.7 NM</span>
       <span class="mfd-attribution" id="mfd-attribution-tag">GOOGLE MAPS PLATFORM</span>
     </div>
   </div>
@@ -1229,7 +1229,16 @@ with open(output_path, "w", encoding="utf-8") as f:
         <button class="close-btn" id="close-theater-btn">&times;</button>
       </div>
       <div class="theater-grid">
-        <div class="theater-card selected" data-theater="NELLIS">
+        <div class="theater-card selected" data-theater="HORMUZ">
+          <div class="theater-card-header">
+            <span class="theater-card-title">&#127754; STRAIT OF HORMUZ (OPERATION SENTINEL)</span>
+            <span class="theater-icao">OOKB</span>
+          </div>
+          <div class="theater-desc">World's most critical maritime chokepoint. Musandam fjord canyons, commercial supertanker escort, coastal ASCM missile threats, and carrier air defense.</div>
+          <div class="theater-stats"><span>RWY: 012° (2,500m)</span><span>ELEV: 30m MSL</span><span>CHOKEPOINT ESCORT</span></div>
+        </div>
+
+        <div class="theater-card" data-theater="NELLIS">
           <div class="theater-card-header">
             <span class="theater-card-title">&#127956; NELLIS AFB / NTTR</span>
             <span class="theater-icao">KLSV</span>
@@ -2130,6 +2139,29 @@ with open(output_path, "w", encoding="utf-8") as f:
     // MISSION THEATERS & GEODETIC COORDINATE REFERENCE SYSTEM
     // =========================================================================
     const MISSION_THEATERS = {
+      HORMUZ: {
+        code: 'OOKB',
+        name: 'Strait of Hormuz (Musandam / Oman)',
+        shortName: 'STRAIT OF HORMUZ',
+        lat0: 26.171,
+        lon0: 56.240,
+        alt0: 30.0,
+        rwyHeadingDeg: 12.0,
+        runwayLengthM: 2500,
+        spawnPos: { x: 0, y: 46.5, z: 1100 },
+        spawnHeading: 0,
+        spawnSpeed: 0,
+        waypoints: [
+          { name: 'WP1: KHASAB FJORD PASS', lat: 26.230, lon: 56.260, x: 2000, z: -6550 },
+          { name: 'WP2: TSS CHOKEPOINT SHIPPING LANE', lat: 26.350, lon: 56.450, x: 21000, z: -19890 },
+          { name: 'WP3: GULF OF OMAN CARRIER PATROL', lat: 25.900, lon: 56.750, x: 51000, z: 30100 },
+          { name: 'WP4: MUSANDAM HIGH RIDGE (JEBEL HARIM)', lat: 26.050, lon: 56.220, x: -2000, z: 13450 }
+        ],
+        samThreats: [
+          { name: 'ASCM-1 (COASTAL BATTERY NOOR)', lat: 26.420, lon: 56.550, x: 30900, z: -27600, radiusM: 14000 },
+          { name: 'RADAR-2 (QESHM SURVEILLANCE)', lat: 26.700, lon: 55.900, x: -33900, z: -58700, radiusM: 18000 }
+        ]
+      },
       NELLIS: {
         code: 'KLSV',
         name: 'Nellis AFB / NTTR (Nevada)',
@@ -2244,8 +2276,8 @@ with open(output_path, "w", encoding="utf-8") as f:
     class TacticalMovingMap {
       constructor(app) {
         this.app = app;
-        this.currentTheaterKey = 'NELLIS';
-        this.currentGPS = { lat: 36.236, lon: -115.034, altFt: 1870 };
+        this.currentTheaterKey = 'HORMUZ';
+        this.currentGPS = { lat: 26.171, lon: 56.240, altFt: 98 };
         this.currentHeading = 0;
         this.isPortalOpen = true;
         this.isMinimized = false;
@@ -5717,6 +5749,18 @@ with open(output_path, "w", encoding="utf-8") as f:
 
         const targetHeading = th.spawnHeading || 0;
         this.physics.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), targetHeading);
+
+        if (this.combat && this.combat.adversary) {
+          if (theaterKey === 'HORMUZ') {
+            this.combat.adversary.orbitCenter.set(2000, 2400, -6500);
+            this.combat.adversary.orbitRadius = 4800;
+            this.combat.samSitePos.set(30900, 220, -27600);
+          } else {
+            this.combat.adversary.orbitCenter.set(0, 1650, -3200);
+            this.combat.adversary.orbitRadius = 3600;
+            this.combat.samSitePos.set(1200, 225, -3200);
+          }
+        }
 
         if (th.spawnSpeed && th.spawnSpeed > 0) {
           this.physics.throttle = 0.85;
