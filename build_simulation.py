@@ -11,6 +11,12 @@ with open(output_path, "w", encoding="utf-8") as f:
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
   
+  <script>
+    window.__ERRORS__ = [];
+    window.onerror = function(msg, url, line, col, err) {
+      window.__ERRORS__.push({ msg: msg, line: line, col: col, stack: err ? err.stack : '' });
+    };
+  </script>
   <!-- Three.js Core & Controls -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -1844,11 +1850,16 @@ with open(output_path, "w", encoding="utf-8") as f:
           'FOX_TWO': 'Fox Two, kill in the basket!',
           'GUNS': 'Guns, guns, guns!',
           'SPLASH': 'Splash one hostile! Good hit!',
+          'SPLASH_FELON': 'Splash one Felon! Hostile neutralized, air superiority established!',
           'SPIKE': 'Warning, radar spike! Break right, flares!',
+          'BANDIT_SPIKE': 'Spike! Hostile bandit radar lock, break break!',
           'CATAPULT': 'Viper 1-1, cleared hot off the cat!',
           'TRAP': 'Three wire! Trap complete, pull back power.',
           'HOOK_DOWN': 'Arresting hook down.',
           'HOOK_UP': 'Arresting hook stowed.',
+          'CALL_BALL': 'Viper 1-1, paddletalk, call the ball.',
+          'WAVE_OFF': 'Wave off! Wave off! Bolter bolter!',
+          'HOBS_LOCK': 'AIM-9X High-off-boresight track confirmed.',
           'DAS_ON': 'DAS spherical thermal vision engaged.',
           'DAS_OFF': 'Standard daylight optics restored.'
         };
@@ -2293,9 +2304,9 @@ with open(output_path, "w", encoding="utf-8") as f:
         alt0: 30.0,
         rwyHeadingDeg: 12.0,
         runwayLengthM: 2500,
-        spawnPos: { x: 0, y: 46.5, z: 1100 },
+        spawnPos: { x: 0, y: 1850, z: 3200 },
         spawnHeading: 0,
-        spawnSpeed: 0,
+        spawnSpeed: 480,
         waypoints: [
           { name: 'WP1: KHASAB FJORD PASS', lat: 26.230, lon: 56.260, x: 2000, z: -6550 },
           { name: 'WP2: TSS CHOKEPOINT SHIPPING LANE', lat: 26.350, lon: 56.450, x: 21000, z: -19890 },
@@ -3588,6 +3599,25 @@ with open(output_path, "w", encoding="utf-8") as f:
         this.rightWingVortex.position.set(5.15, 0.15, -11.0);
         m.add(this.rightWingVortex);
 
+        // Pratt & Whitney F135 Supersonic Engine Exhaust Heat Shimmer Quads
+        this.heatShimmerPlates = [];
+        for (let i = 0; i < 7; i++) {
+          const shimmerGeo = new THREE.PlaneGeometry(1.4 + i * 0.42, 1.4 + i * 0.42);
+          const shimmerMat = new THREE.MeshBasicMaterial({
+            color: 0xffeebb,
+            transparent: true,
+            opacity: 0.0,
+            blending: THREE.AdditiveBlending,
+            side: THREE.DoubleSide,
+            depthWrite: false
+          });
+          const plate = new THREE.Mesh(shimmerGeo, shimmerMat);
+          plate.position.set(0, 0.0, -4.8 - i * 1.35);
+          this.heatShimmerGroup.add(plate);
+          this.heatShimmerPlates.push(plate);
+        }
+        m.add(this.heatShimmerGroup);
+
         // 8. Tricycle Retractable Landing Gear with Oleo Struts
         this.buildLandingGear();
         m.add(this.landingGearGroup);
@@ -3871,6 +3901,32 @@ with open(output_path, "w", encoding="utf-8") as f:
           }
         }
 
+        // Dynamic High-G Wing-Surface Condensation Moisture Sheets
+        if (this.leftWingVaporSheet && this.rightWingVaporSheet) {
+          const vaporAlpha = Math.max(0, Math.min(0.85, (g - 4.2) / 3.8));
+          this.leftWingVaporSheet.material.opacity = vaporAlpha;
+          this.rightWingVaporSheet.material.opacity = vaporAlpha;
+        }
+
+        // Tailhook mechanical deployment animation
+        if (this.tailhookGroup) {
+          const targetHookRot = physics.tailhookDown ? 0.76 : 0.0;
+          this.tailhookGroup.rotation.x += (targetHookRot - this.tailhookGroup.rotation.x) * 0.16;
+        }
+
+        // Pratt & Whitney F135 Supersonic Engine Exhaust Heat Shimmer Animation
+        if (this.heatShimmerPlates && this.heatShimmerPlates.length > 0) {
+          const shimmerIntensity = (physics.throttle > 0.40) ? (isAB ? 0.52 : 0.22) : 0.0;
+          const nowMs = performance.now() * 0.001;
+          for (let i = 0; i < this.heatShimmerPlates.length; i++) {
+            const plate = this.heatShimmerPlates[i];
+            plate.rotation.z += (14.0 + i * 5.0) * 0.016;
+            const wobble = 1.0 + Math.sin(nowMs * 35 + i * 1.6) * 0.16;
+            plate.scale.set(wobble, wobble, 1.0);
+            plate.material.opacity = shimmerIntensity * (0.65 + Math.sin(nowMs * 28 + i * 2.2) * 0.35);
+          }
+        }
+
         // Landing gear deployment
         this.landingGearGroup.visible = physics.gearDown;
       }
@@ -3895,8 +3951,194 @@ with open(output_path, "w", encoding="utf-8") as f:
         this.buildMilitaryAirbase();
         this.buildNightAirfieldLighting();
         this.buildCarrierStrikeGroup();
+        this.buildSupertankers();
         this.buildDestructibleTargets();
         this.buildAtmosphericClouds();
+        this.applyTheaterTerrain('HORMUZ');
+      }
+
+      buildSupertankers() {
+        this.supertankerGroup = new THREE.Group();
+
+        const buildVLCC = (name, x, z, heading) => {
+          const tanker = new THREE.Group();
+          tanker.position.set(x, 4.0, z);
+          tanker.rotation.y = heading;
+
+          // Red Underwater Hull
+          const redHullMat = new THREE.MeshStandardMaterial({ color: 0x992211, roughness: 0.7 });
+          const lowerHull = new THREE.Mesh(new THREE.BoxGeometry(58, 14, 320), redHullMat);
+          lowerHull.position.y = 5;
+          tanker.add(lowerHull);
+
+          // Black Freeboard Topsides
+          const blackHullMat = new THREE.MeshStandardMaterial({ color: 0x16181a, roughness: 0.5 });
+          const upperHull = new THREE.Mesh(new THREE.BoxGeometry(58, 12, 318), blackHullMat);
+          upperHull.position.y = 17;
+          tanker.add(upperHull);
+
+          // Green Cargo Weather Deck
+          const deckMat = new THREE.MeshStandardMaterial({ color: 0x243e32, roughness: 0.8 });
+          const deck = new THREE.Mesh(new THREE.PlaneGeometry(56, 314).rotateX(-Math.PI / 2), deckMat);
+          deck.position.y = 23.2;
+          tanker.add(deck);
+
+          // Central Cargo Piping Catwalk
+          const pipeMat = new THREE.MeshStandardMaterial({ color: 0x555c62, metalness: 0.7, roughness: 0.3 });
+          const manifold = new THREE.Mesh(new THREE.BoxGeometry(4.5, 3.5, 230), pipeMat);
+          manifold.position.set(0, 25.2, 20);
+          tanker.add(manifold);
+
+          // Aft Deckhouse Superstructure & Bridge Tower
+          const whiteMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee, roughness: 0.4 });
+          const bridge = new THREE.Mesh(new THREE.BoxGeometry(46, 26, 36), whiteMat);
+          bridge.position.set(0, 36, -118);
+          tanker.add(bridge);
+
+          // Panoramic Wheelhouse Bridge Windows
+          const glassMat = new THREE.MeshBasicMaterial({ color: 0x112233 });
+          const windows = new THREE.Mesh(new THREE.BoxGeometry(47, 4.5, 8), glassMat);
+          windows.position.set(0, 46.5, -108);
+          tanker.add(windows);
+
+          // Twin Exhaust Funnels (Red & Black)
+          const funnelMat = new THREE.MeshStandardMaterial({ color: 0xcc2222, roughness: 0.4 });
+          const lFunnel = new THREE.Mesh(new THREE.CylinderGeometry(2.5, 3.0, 16, 8), funnelMat);
+          lFunnel.position.set(-10, 52, -132);
+          tanker.add(lFunnel);
+
+          const rFunnel = new THREE.Mesh(new THREE.CylinderGeometry(2.5, 3.0, 16, 8), funnelMat);
+          rFunnel.position.set(10, 52, -132);
+          tanker.add(rFunnel);
+
+          // Wake foam trail behind ship
+          const wakeMat = new THREE.MeshBasicMaterial({ color: 0xccffff, transparent: true, opacity: 0.45 });
+          const wake = new THREE.Mesh(new THREE.PlaneGeometry(62, 380).rotateX(-Math.PI / 2), wakeMat);
+          wake.position.set(0, 0.4, 210);
+          tanker.add(wake);
+
+          this.supertankerGroup.add(tanker);
+
+          this.targets.push({
+            name: `PROTECTED: VLCC ${name}`,
+            mesh: tanker,
+            radius: 85,
+            isHostile: false,
+            destroyed: false
+          });
+        };
+
+        buildVLCC('AL-MUSANDAM STAR', 2100, -5800, 2.85); // Outbound shipping lane
+        buildVLCC('ARABIAN SENTINEL', -1800, -8400, -0.28); // Inbound shipping lane
+
+        this.scene.add(this.supertankerGroup);
+      }
+
+      applyTheaterTerrain(theaterKey) {
+        if (!this.terrain || !this.terrain.geometry) return;
+        const pos = this.terrain.geometry.attributes.position;
+        const colorAttr = this.terrain.geometry.attributes.color;
+        const isHormuz = (theaterKey === 'HORMUZ');
+        const isDesert = (theaterKey === 'NELLIS' || theaterKey === 'DEATH_VALLEY');
+        const color = new THREE.Color();
+
+        for (let i = 0; i < pos.count; i++) {
+          const x = pos.getX(i);
+          const z = pos.getZ(i);
+
+          let elev = 0;
+          if (isHormuz) {
+            // Musandam Fjord Canyons & Strait of Hormuz Topography
+            const inCanyon = (Math.abs(x) < 320) && (z > -3700 && z < 600);
+            const distFromCanyonAxis = Math.abs(x);
+            
+            // Fjord canyon walls rising up to 1400m
+            const fjordWalls = Math.min(1.0, Math.max(0, (distFromCanyonAxis - 280) / 1600));
+            const n1 = Math.sin(x * 0.0012) * Math.cos(z * 0.0012) * 320;
+            const n2 = Math.sin(x * 0.0032 + 0.8) * Math.cos(z * 0.0032 + 1.2) * 120;
+            const ridgeHeight = (650 + n1 + n2) * fjordWalls;
+
+            // To the north (z < -3800), open into the vast Strait of Hormuz
+            const inStrait = (z < -3800);
+            if (inStrait) {
+              // Deep strait waters with distant Iranian islands (Larak & Qeshm) at z < -8500
+              const distIsland = (z < -8500) ? Math.max(0, Math.sin(x * 0.0008) * 380 - 60) : -65;
+              elev = distIsland;
+            } else if (inCanyon) {
+              elev = 35.8; // Khasab Airbase runway level
+            } else {
+              elev = Math.max(36.0, 36.0 + ridgeHeight);
+            }
+
+            pos.setY(i, elev);
+
+            // Arid Limestone Desert Palette (Musandam / Arabia)
+            if (elev < 1.0) {
+              color.setHex(0x005a69); // Persian Gulf deep turquoise seabed
+            } else if (elev < 18) {
+              color.setHex(0xdfca9d); // Coastal sand spit / gravel
+            } else if (elev < 220) {
+              color.setHex(0xb87f48); // Warm sandstone / terracotta lower ridges
+            } else if (elev < 650) {
+              color.setHex(0x8a5932); // Sunbaked limestone canyon walls
+            } else {
+              color.setHex(0x563821); // Dark craggy limestone mountain peaks
+            }
+          } else {
+            // Standard island terrain
+            const d = Math.hypot(x, z + 2000);
+            const islandMask = Math.max(0, 1.0 - Math.pow(Math.min(1.0, d / 4800), 2));
+            const n1 = Math.sin(x * 0.0008) * Math.cos(z * 0.0008) * 160;
+            const n2 = Math.sin(x * 0.0022 + 1.2) * Math.cos(z * 0.0022 + 0.8) * 70;
+            const n3 = Math.sin(x * 0.005) * Math.cos(z * 0.005) * 25;
+            const landBase = (islandMask > 0.08) ? (160 * Math.pow(islandMask, 0.75)) : -55;
+            elev = landBase + (n1 + n2 + n3) * islandMask;
+            if (Math.abs(x) < 280 && Math.abs(z + 2000) < 1850) {
+              elev = 35.8;
+            } else if (islandMask <= 0.08) {
+              elev = -65.0;
+            }
+            pos.setY(i, elev);
+
+            if (elev < 0.5) color.setHex(0x0c2540);
+            else if (elev < 12) color.setHex(0xdcc79c);
+            else if (elev < 170) color.setHex(0x2d5a28);
+            else if (elev < 330) color.setHex(0x454e47);
+            else color.setHex(0xf0f5fa);
+          }
+
+          if (colorAttr) {
+            colorAttr.setXYZ(i, color.r, color.g, color.b);
+          }
+        }
+
+        pos.needsUpdate = true;
+        if (colorAttr) colorAttr.needsUpdate = true;
+        this.terrain.geometry.computeVertexNormals();
+
+        // Forest visibility
+        if (this.trunkMesh && this.leavesMesh) {
+          this.trunkMesh.visible = !isHormuz && !isDesert;
+          this.leavesMesh.visible = !isHormuz && !isDesert;
+        }
+
+        // Ocean color adjustment
+        if (this.oceanUniforms) {
+          if (isHormuz) {
+            this.oceanUniforms.shallowColor.value.setHex(0x00c4a7); // Radiant Persian Gulf turquoise
+            this.oceanUniforms.deepColor.value.setHex(0x073b52);
+            if (this.scene.fog) this.scene.fog.color.setHex(0xa9cfd9);
+          } else {
+            this.oceanUniforms.shallowColor.value.setHex(0x0a3c66);
+            this.oceanUniforms.deepColor.value.setHex(0x061c33);
+            if (this.scene.fog) this.scene.fog.color.setHex(0x8cbfe8);
+          }
+        }
+
+        // Supertanker convoy visibility
+        if (this.supertankerGroup) {
+          this.supertankerGroup.visible = isHormuz;
+        }
       }
 
       buildLightingAndSky() {
@@ -4432,6 +4674,49 @@ with open(output_path, "w", encoding="utf-8") as f:
         ciws.position.set(-70, 50, 320);
         cvn.add(ciws);
 
+        // 3D FLOLS (Fresnel Lens Optical Landing System) Deck Assembly
+        const flolsTower = new THREE.Group();
+        flolsTower.position.set(-74, 49.5, 175);
+        flolsTower.rotation.y = -0.16; // Aligned with angled recovery deck axis
+
+        const flolsHousing = new THREE.Mesh(
+          new THREE.BoxGeometry(4.5, 8.5, 3.2),
+          new THREE.MeshStandardMaterial({ color: 0x1b2024, roughness: 0.85 })
+        );
+        flolsHousing.position.y = 4.2;
+        flolsTower.add(flolsHousing);
+
+        // Green Horizontal Datum Reference Light Wings [ ---   --- ]
+        const datumMat = new THREE.MeshBasicMaterial({ color: 0x00ff66 });
+        const leftDatum = new THREE.Mesh(new THREE.BoxGeometry(6.5, 0.7, 0.5), datumMat);
+        leftDatum.position.set(-5.5, 4.4, 1.7);
+        flolsTower.add(leftDatum);
+
+        const rightDatum = new THREE.Mesh(new THREE.BoxGeometry(6.5, 0.7, 0.5), datumMat);
+        rightDatum.position.set(5.5, 4.4, 1.7);
+        flolsTower.add(rightDatum);
+
+        // Amber Optical "Meatball" Center Lens
+        const meatballMat = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
+        const meatballLens = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.85, 0.85, 0.6, 12).rotateX(Math.PI / 2),
+          meatballMat
+        );
+        meatballLens.position.set(0, 4.4, 1.8);
+        flolsTower.add(meatballLens);
+
+        // Wave-Off Red Cut Lights
+        const waveOffMat = new THREE.MeshBasicMaterial({ color: 0xff2222 });
+        const waveOffUpper = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.7, 0.5), waveOffMat);
+        waveOffUpper.position.set(0, 7.6, 1.7);
+        flolsTower.add(waveOffUpper);
+
+        const waveOffLower = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.7, 0.5), waveOffMat);
+        waveOffLower.position.set(0, 1.2, 1.7);
+        flolsTower.add(waveOffLower);
+
+        cvn.add(flolsTower);
+
         fleetGroup.add(cvn);
 
         // 2. Two Arleigh Burke-Class Aegis Destroyers in Escort Formation
@@ -4621,14 +4906,28 @@ with open(output_path, "w", encoding="utf-8") as f:
         this.adversaryGroup = this.createSu57Mesh();
         this.adversary = {
           mesh: this.adversaryGroup,
+          position: new THREE.Vector3(0, 1650, -3200),
+          velocity: new THREE.Vector3(0, 0, 215),
+          quaternion: new THREE.Quaternion(),
+          speed: 215, // m/s
+          health: 100,
+          maxHealth: 100,
+          state: 'PATROL',
+          isAlive: true,
           orbitCenter: new THREE.Vector3(0, 1650, -3200),
           orbitRadius: 3600,
           orbitAngle: 0,
-          speed: 215, // m/s
-          health: 100,
-          isAlive: true,
-          destroyedTimer: 0
+          gunCooldown: 0.0,
+          missileCooldown: 10.0,
+          flareCooldown: 0.0,
+          destroyedTimer: 0,
+          debris: []
         };
+        this.adversaryMissiles = [];
+        this.adversaryFlares = [];
+        this.adversaryTracers = [];
+        this.hobsTarget = null;
+        this.hobsLocked = false;
         this.scene.add(this.adversaryGroup);
 
         // Add to target database
@@ -4740,6 +5039,17 @@ with open(output_path, "w", encoding="utf-8") as f:
         rNozzle.position.set(1.2, 0, -7.0);
         group.add(rNozzle);
 
+        // Twin Afterburner Flame Cones
+        const advFlameGeo = new THREE.ConeGeometry(0.55, 3.2, 8).rotateX(-Math.PI / 2);
+        const advFlameMat = new THREE.MeshBasicMaterial({ color: 0xff4400, blending: THREE.AdditiveBlending });
+        group.advLFlame = new THREE.Mesh(advFlameGeo, advFlameMat);
+        group.advLFlame.position.set(-1.2, 0, -9.0);
+        group.add(group.advLFlame);
+
+        group.advRFlame = new THREE.Mesh(advFlameGeo, advFlameMat.clone());
+        group.advRFlame.position.set(1.2, 0, -9.0);
+        group.add(group.advRFlame);
+
         group.position.set(0, 1650, -3200);
         return group;
       }
@@ -4808,13 +5118,24 @@ with open(output_path, "w", encoding="utf-8") as f:
         );
         missileMesh.quaternion.copy(missileRot);
 
+        const isHOBS = !!(this.hobsLocked && this.hobsTarget);
+        let initForward = forward.clone();
+        if (isHOBS && this.hobsTarget && this.hobsTarget.mesh) {
+          const toTgt = this.hobsTarget.mesh.position.clone().sub(jetPos).normalize();
+          initForward.lerp(toTgt, 0.45).normalize();
+          sound.playTacticalRadioCallout('HOBS_LOCK');
+        }
+
         this.missiles.push({
           mesh: missileMesh,
-          velocity: forward.clone().multiplyScalar(400),
-          forward: forward,
-          life: 8.0,
+          velocity: initForward.clone().multiplyScalar(400),
+          forward: initForward,
+          speed: 400,
+          life: 8.5,
           ignited: false,
-          ignitionTimer: 0.2
+          ignitionTimer: 0.15,
+          isHOBS: isHOBS,
+          targetMesh: (this.hobsTarget && this.hobsTarget.mesh) ? this.hobsTarget.mesh : null
         });
         this.scene.add(missileMesh);
       }
@@ -4886,10 +5207,319 @@ with open(output_path, "w", encoding="utf-8") as f:
         this.waterGeysers.push({ mesh: geyser, age: 0, maxAge: 1.5 });
       }
 
+      adversaryFireGun() {
+        sound.playGunfire();
+        const advPos = this.adversary.mesh.position;
+        const advForward = new THREE.Vector3(0, 0, 1).applyQuaternion(this.adversary.mesh.quaternion);
+        const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.adversary.mesh.quaternion);
+
+        for (let s of [-1.2, 1.2]) {
+          const muzzlePos = advPos.clone().add(advForward.clone().multiplyScalar(4.0)).add(right.clone().multiplyScalar(s * 0.8));
+          const tracer = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.28, 0.28, 14.0, 6).rotateX(Math.PI / 2),
+            new THREE.MeshBasicMaterial({ color: 0xff2200 })
+          );
+          tracer.position.copy(muzzlePos);
+          const vel = advForward.clone().multiplyScalar(1050).add(new THREE.Vector3((Math.random() - 0.5) * 8, (Math.random() - 0.5) * 8, (Math.random() - 0.5) * 8));
+          this.scene.add(tracer);
+          this.adversaryTracers.push({ mesh: tracer, velocity: vel, life: 2.2 });
+        }
+      }
+
+      adversaryLaunchMissile() {
+        sound.playMissileLaunch();
+        sound.playTacticalRadioCallout('BANDIT_SPIKE');
+        const advPos = this.adversary.mesh.position;
+        const advForward = new THREE.Vector3(0, 0, 1).applyQuaternion(this.adversary.mesh.quaternion);
+
+        const group = new THREE.Group();
+        const body = new THREE.Mesh(this.samMissileGeo, new THREE.MeshStandardMaterial({ color: 0x2b3137, roughness: 0.4 }));
+        group.add(body);
+        const flame = new THREE.Mesh(
+          new THREE.ConeGeometry(0.35, 2.2, 6).rotateX(Math.PI / 2),
+          new THREE.MeshBasicMaterial({ color: 0xff3300, blending: THREE.AdditiveBlending })
+        );
+        flame.position.z = -2.4;
+        group.add(flame);
+
+        group.position.copy(advPos).add(new THREE.Vector3(0, -1.2, 0));
+        this.scene.add(group);
+
+        this.adversaryMissiles.push({
+          mesh: group,
+          forward: advForward.clone(),
+          velocity: advForward.clone().multiplyScalar(320),
+          speed: 320,
+          age: 0,
+          maxAge: 11.0,
+          corkscrewPhase: Math.random() * Math.PI * 2,
+          puffTimer: 0,
+          isDecoyed: false
+        });
+
+        const banner = document.getElementById('target-destroyed-banner');
+        if (banner) {
+          banner.innerText = 'WARNING: SU-57 FIRED R-73 MISSILE // POP FLARES & REDUCE POWER!';
+          banner.style.display = 'block';
+          setTimeout(() => { banner.style.display = 'none'; }, 3200);
+        }
+      }
+
+      adversaryDispenseFlares() {
+        sound.playFlare();
+        const advPos = this.adversary.mesh.position;
+        const advBack = new THREE.Vector3(0, 0, -1).applyQuaternion(this.adversary.mesh.quaternion);
+        const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.adversary.mesh.quaternion);
+
+        for (let i of [-1, 1]) {
+          const flare = new THREE.Mesh(this.flareGeo, new THREE.MeshBasicMaterial({ color: 0xffffff }));
+          flare.position.copy(advPos).add(right.clone().multiplyScalar(i * 2.2)).add(advBack.clone().multiplyScalar(2.0));
+          const vel = advBack.clone().multiplyScalar(45).add(right.clone().multiplyScalar(i * 25));
+          this.scene.add(flare);
+          this.adversaryFlares.push({ mesh: flare, velocity: vel, life: 3.0 });
+        }
+      }
+
+      damageAdversary(damage, impactPos) {
+        if (!this.adversary || !this.adversary.isAlive) return;
+        this.adversary.health = Math.max(0, this.adversary.health - damage);
+        this.createMultiStageExplosion(impactPos || this.adversary.mesh.position);
+        this.lastHitTime = performance.now();
+
+        if (this.adversary.health <= 0) {
+          this.adversary.isAlive = false;
+          this.adversary.destroyedTimer = 0;
+          this.score += 2;
+          const scoreEl = document.getElementById('val-score');
+          if (scoreEl) scoreEl.innerText = `${this.score} / ${this.world.targets.length}`;
+
+          // Spawn airframe breakup debris
+          this.adversary.debris = [];
+          const pos = this.adversary.mesh.position.clone();
+          const camoMat = new THREE.MeshStandardMaterial({ color: 0x2b3137, roughness: 0.6 });
+
+          const fuseDebris = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.8, 8.0), camoMat);
+          fuseDebris.position.copy(pos);
+          this.scene.add(fuseDebris);
+          this.adversary.debris.push({
+            mesh: fuseDebris,
+            velocity: this.adversary.velocity.clone().multiplyScalar(0.7).add(new THREE.Vector3((Math.random() - 0.5) * 20, 10, (Math.random() - 0.5) * 20)),
+            rotVel: new THREE.Vector3(2.5, 4.0, 1.2),
+            life: 14.0
+          });
+
+          const lWing = new THREE.Mesh(new THREE.BoxGeometry(6.0, 0.4, 4.0), camoMat);
+          lWing.position.copy(pos).add(new THREE.Vector3(-4, 0, 0));
+          this.scene.add(lWing);
+          this.adversary.debris.push({
+            mesh: lWing,
+            velocity: this.adversary.velocity.clone().multiplyScalar(0.5).add(new THREE.Vector3(-25, 14, 5)),
+            rotVel: new THREE.Vector3(5.0, 1.5, 6.0),
+            life: 14.0
+          });
+
+          const rWing = new THREE.Mesh(new THREE.BoxGeometry(6.0, 0.4, 4.0), camoMat);
+          rWing.position.copy(pos).add(new THREE.Vector3(4, 0, 0));
+          this.scene.add(rWing);
+          this.adversary.debris.push({
+            mesh: rWing,
+            velocity: this.adversary.velocity.clone().multiplyScalar(0.5).add(new THREE.Vector3(25, 14, 5)),
+            rotVel: new THREE.Vector3(-5.0, -1.5, -6.0),
+            life: 14.0
+          });
+
+          this.adversary.mesh.scale.set(0.001, 0.001, 0.001);
+
+          sound.playTacticalRadioCallout('SPLASH_FELON');
+          const banner = document.getElementById('target-destroyed-banner');
+          if (banner) {
+            banner.innerText = 'SU-57 FELON SPLASHED! AIR SUPERIORITY ACHIEVED (+250 PTS)';
+            banner.style.display = 'block';
+            setTimeout(() => { banner.style.display = 'none'; }, 3800);
+          }
+        }
+      }
+
+      resetAdversary(theaterKey) {
+        if (!this.adversary) return;
+        this.adversary.isAlive = true;
+        this.adversary.health = 100;
+        this.adversary.state = 'PATROL';
+        this.adversary.destroyedTimer = 0;
+        this.adversary.gunCooldown = 0;
+        this.adversary.missileCooldown = 8.0;
+        this.adversary.mesh.scale.set(1, 1, 1);
+
+        if (theaterKey === 'HORMUZ') {
+          this.adversary.orbitCenter.set(800, 2200, -6000);
+          this.adversary.mesh.position.set(800, 2200, -6000);
+          this.adversary.orbitRadius = 4000;
+          this.samSitePos.set(3200, 240, -4200);
+        } else {
+          this.adversary.orbitCenter.set(0, 1650, -3200);
+          this.adversary.mesh.position.set(0, 1650, -3200);
+          this.adversary.orbitRadius = 3600;
+          this.samSitePos.set(1200, 225, -3200);
+        }
+
+        if (this.adversary.debris) {
+          for (const d of this.adversary.debris) {
+            this.scene.remove(d.mesh);
+          }
+          this.adversary.debris = [];
+        }
+      }
+
+      updateAdversary(dt) {
+        if (!this.adversary || !this.adversary.mesh) return;
+
+        // 1. Tumbling debris when destroyed
+        if (!this.adversary.isAlive) {
+          this.adversary.destroyedTimer += dt;
+          if (this.adversary.debris && this.adversary.debris.length > 0) {
+            for (let i = this.adversary.debris.length - 1; i >= 0; i--) {
+              const d = this.adversary.debris[i];
+              d.life -= dt;
+              d.velocity.y -= 14.0 * dt;
+              d.mesh.position.addScaledVector(d.velocity, dt);
+              d.mesh.rotation.x += d.rotVel.x * dt;
+              d.mesh.rotation.y += d.rotVel.y * dt;
+              d.mesh.rotation.z += d.rotVel.z * dt;
+              d.smokeTimer = (d.smokeTimer || 0) + dt;
+              if (d.smokeTimer > 0.08) {
+                d.smokeTimer = 0;
+                const puff = new THREE.Mesh(this.samSmokeGeo, this.samSmokeMat.clone());
+                puff.position.copy(d.mesh.position);
+                puff.scale.setScalar(0.9 + Math.random() * 0.5);
+                this.scene.add(puff);
+                this.samSmokePuffs.push({ mesh: puff, age: 0, maxAge: 2.8 });
+              }
+              if (d.life <= 0 || d.mesh.position.y <= 0) {
+                this.scene.remove(d.mesh);
+                this.adversary.debris.splice(i, 1);
+              }
+            }
+          }
+          if (this.adversary.destroyedTimer > 50.0) {
+            this.resetAdversary(this.app && this.app.tacticalMap ? this.app.tacticalMap.currentTheaterKey : 'HORMUZ');
+            sound.playTacticalRadioCallout('SPIKE');
+            const banner = document.getElementById('target-destroyed-banner');
+            if (banner) {
+              banner.innerText = 'AWACS: NEW HOSTILE SU-57 INBOUND // COMBAT INTERCEPT ACTIVE';
+              banner.style.display = 'block';
+              setTimeout(() => { banner.style.display = 'none'; }, 3200);
+            }
+          }
+          return;
+        }
+
+        // 2. Active AI Combat Dynamics
+        const playerPos = this.aircraft.group.position;
+        const advPos = this.adversary.mesh.position;
+        const distToPlayer = advPos.distanceTo(playerPos);
+        const toPlayer = playerPos.clone().sub(advPos).normalize();
+
+        const advForward = new THREE.Vector3(0, 0, 1).applyQuaternion(this.adversary.mesh.quaternion);
+        const dotPlayer = advForward.dot(toPlayer);
+
+        let missileThreat = false;
+        for (const m of this.missiles) {
+          if (m.mesh.position.distanceTo(advPos) < 2600) {
+            missileThreat = true;
+            break;
+          }
+        }
+
+        this.adversary.gunCooldown -= dt;
+        this.adversary.missileCooldown -= dt;
+        this.adversary.flareCooldown -= dt;
+
+        if (missileThreat || (dotPlayer < -0.65 && distToPlayer < 2400)) {
+          this.adversary.state = 'EVADING';
+        } else if (distToPlayer <= 7500) {
+          this.adversary.state = 'ENGAGING';
+        } else {
+          this.adversary.state = 'PATROL';
+        }
+
+        let desiredDir = advForward.clone();
+        let desiredSpeed = 220;
+        let rollTarget = 0;
+
+        if (this.adversary.state === 'PATROL') {
+          this.adversary.orbitAngle += (this.adversary.speed / this.adversary.orbitRadius) * dt;
+          const targetX = this.adversary.orbitCenter.x + Math.cos(this.adversary.orbitAngle) * this.adversary.orbitRadius;
+          const targetZ = this.adversary.orbitCenter.z + Math.sin(this.adversary.orbitAngle) * this.adversary.orbitRadius;
+          const patrolTarget = new THREE.Vector3(targetX, this.adversary.orbitCenter.y, targetZ);
+          desiredDir = patrolTarget.clone().sub(advPos).normalize();
+          rollTarget = 0.42;
+          desiredSpeed = 220;
+        } else if (this.adversary.state === 'ENGAGING') {
+          desiredSpeed = 295;
+          const playerVel = (this.aircraft.physics && this.aircraft.physics.velocity) ? this.aircraft.physics.velocity : new THREE.Vector3(0, 0, -200);
+          const leadTime = Math.min(3.5, distToPlayer / 380);
+          const leadPos = playerPos.clone().add(playerVel.clone().multiplyScalar(leadTime));
+          desiredDir = leadPos.clone().sub(advPos).normalize();
+
+          const cross = new THREE.Vector3().crossVectors(advForward, desiredDir);
+          rollTarget = Math.max(-1.3, Math.min(1.3, cross.y * 2.8));
+
+          if (distToPlayer < 1200 && dotPlayer > 0.88 && this.adversary.gunCooldown <= 0) {
+            this.adversaryFireGun();
+            this.adversary.gunCooldown = 0.22;
+          }
+          if (distToPlayer > 1200 && distToPlayer < 4500 && dotPlayer > 0.80 && this.adversary.missileCooldown <= 0) {
+            this.adversaryLaunchMissile();
+            this.adversary.missileCooldown = 18.0;
+          }
+        } else if (this.adversary.state === 'EVADING') {
+          desiredSpeed = 315;
+          const breakDir = new THREE.Vector3().crossVectors(toPlayer, new THREE.Vector3(0, 1, 0)).normalize();
+          desiredDir = breakDir.add(new THREE.Vector3(0, 0.4, 0)).normalize();
+          rollTarget = 1.45;
+
+          if (this.adversary.flareCooldown <= 0) {
+            this.adversaryDispenseFlares();
+            this.adversary.flareCooldown = 1.8;
+          }
+        }
+
+        this.adversary.speed += (desiredSpeed - this.adversary.speed) * Math.min(1.0, 1.2 * dt);
+        const lookQuat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), desiredDir);
+        const rollQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), rollTarget);
+        lookQuat.multiply(rollQuat);
+        this.adversary.mesh.quaternion.slerp(lookQuat, Math.min(1.0, 2.8 * dt));
+
+        const currentForward = new THREE.Vector3(0, 0, 1).applyQuaternion(this.adversary.mesh.quaternion);
+        this.adversary.velocity.copy(currentForward).multiplyScalar(this.adversary.speed);
+        advPos.addScaledVector(this.adversary.velocity, dt);
+
+        if (advPos.y < 350) advPos.y = 350;
+
+        const isEngagingOrEvading = (this.adversary.state === 'ENGAGING' || this.adversary.state === 'EVADING');
+        if (this.adversary.mesh.advLFlame && this.adversary.mesh.advRFlame) {
+          const flameScale = isEngagingOrEvading ? (1.0 + Math.random() * 0.4) : 0.001;
+          this.adversary.mesh.advLFlame.scale.set(flameScale, flameScale, flameScale * 1.4);
+          this.adversary.mesh.advRFlame.scale.set(flameScale, flameScale, flameScale * 1.4);
+          this.adversary.mesh.advLFlame.visible = isEngagingOrEvading;
+          this.adversary.mesh.advRFlame.visible = isEngagingOrEvading;
+        }
+      }
+
       checkTargetHit(pos) {
         if (!this.world || !this.world.targets) return false;
+
+        // Direct hit on adversary Su-57
+        if (this.adversary && this.adversary.isAlive) {
+          if (this.adversary.mesh.position.distanceTo(pos) < 32) {
+            this.damageAdversary(18, pos);
+            return true;
+          }
+        }
+
         for (const tgt of this.world.targets) {
           if (tgt.destroyed) continue;
+          if (tgt.mesh === this.adversary.mesh) continue;
           if (tgt.mesh.position.distanceTo(pos) < tgt.radius) {
             tgt.destroyed = true;
             this.lastHitTime = performance.now();
@@ -4960,7 +5590,7 @@ with open(output_path, "w", encoding="utf-8") as f:
           }
         }
 
-        // Missiles update
+        // Missiles update (Player AIM-120D / AIM-9X with Proportional Navigation & Decoy Logic)
         for (let i = this.missiles.length - 1; i >= 0; i--) {
           const m = this.missiles[i];
           m.life -= dt;
@@ -4968,11 +5598,46 @@ with open(output_path, "w", encoding="utf-8") as f:
           if (m.ignitionTimer <= 0 && !m.ignited) m.ignited = true;
 
           if (m.ignited) {
-            m.velocity.addScaledVector(m.forward, 880 * dt);
+            m.speed = (m.speed || 400) + 240 * dt;
+
+            let targetPoint = null;
+            if (this.adversary && this.adversary.isAlive) {
+              targetPoint = this.adversary.mesh.position.clone();
+              if (this.adversaryFlares.length > 0) {
+                const flareDist = this.adversaryFlares[0].mesh.position.distanceTo(m.mesh.position);
+                if (flareDist < 800) {
+                  targetPoint = this.adversaryFlares[0].mesh.position.clone();
+                }
+              }
+            } else if (this.world && this.world.targets) {
+              for (const tgt of this.world.targets) {
+                if (!tgt.destroyed && tgt.mesh.position.distanceTo(m.mesh.position) < 5500) {
+                  targetPoint = tgt.mesh.position.clone();
+                  break;
+                }
+              }
+            }
+
+            if (targetPoint) {
+              const toTarget = targetPoint.clone().sub(m.mesh.position).normalize();
+              const steerRate = m.isHOBS ? 8.2 : 5.2;
+              m.forward.lerp(toTarget, steerRate * dt).normalize();
+              m.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), m.forward);
+            }
+
+            m.velocity.copy(m.forward).multiplyScalar(m.speed);
           }
           m.mesh.position.addScaledVector(m.velocity, dt);
 
-          if (this.checkTargetHit(m.mesh.position) || m.mesh.position.y <= 0 || m.life <= 0) {
+          let hitAdv = false;
+          if (this.adversary && this.adversary.isAlive) {
+            if (m.mesh.position.distanceTo(this.adversary.mesh.position) < 32) {
+              this.damageAdversary(70, m.mesh.position);
+              hitAdv = true;
+            }
+          }
+
+          if (hitAdv || this.checkTargetHit(m.mesh.position) || m.mesh.position.y <= 0 || m.life <= 0) {
             if (m.mesh.position.y <= 0) this.createWaterGeyser(m.mesh.position);
             this.createMultiStageExplosion(m.mesh.position);
             this.scene.remove(m.mesh);
@@ -5001,18 +5666,15 @@ with open(output_path, "w", encoding="utf-8") as f:
           exp.age += dt;
           const progress = exp.age / exp.maxAge;
 
-          // Flash fades quickly
           exp.flash.material.opacity = Math.max(0, 1.0 - exp.age * 8.0);
           exp.flash.scale.addScalar(18 * dt);
 
-          // Fireball expands and fades to dark smoke
           for (const lobe of exp.lobes) {
             lobe.scale.addScalar(14 * dt);
             lobe.position.y += 12 * dt;
             lobe.material.opacity = Math.max(0, 0.9 - progress * 1.1);
           }
 
-          // Smoke pillar rises and expands
           exp.smoke.position.y += 28 * dt;
           exp.smoke.scale.addScalar(22 * dt);
           exp.smoke.material.opacity = Math.max(0, 0.85 - progress * 0.9);
@@ -5034,7 +5696,7 @@ with open(output_path, "w", encoding="utf-8") as f:
               if (this.samLockTimer > 3.0) {
                 sound.playTacticalRadioCallout('SPIKE');
                 this.launchSAM();
-                this.samCooldown = 20.0; // 20s between battery salvos
+                this.samCooldown = 20.0;
                 this.samLockTimer = 0;
               }
             }
@@ -5047,21 +5709,17 @@ with open(output_path, "w", encoding="utf-8") as f:
         for (let i = this.samMissiles.length - 1; i >= 0; i--) {
           const sam = this.samMissiles[i];
           sam.age += dt;
-          sam.speed = Math.min(620, sam.speed + 175 * dt); // Accelerate to Mach 2+
+          sam.speed = Math.min(620, sam.speed + 175 * dt);
 
-          // Countermeasure Flare Evasion Check
           let targetPoint = this.aircraft.group.position.clone();
           if (this.flares.length > 0 && this.aircraft.physics.throttle < 0.70) {
-            // Engine cooled below reheat & active magnesium flares: SAM seeker decoyed!
             sam.isDecoyed = true;
             targetPoint = this.flares[0].mesh.position.clone();
           }
 
-          // Proportional Navigation Guidance
           const toTarget = targetPoint.clone().sub(sam.mesh.position).normalize();
           sam.forward.lerp(toTarget, 4.2 * dt).normalize();
 
-          // Helical Corkscrew Aerodynamic Oscillation
           sam.corkscrewPhase += 15.0 * dt;
           const upVec = new THREE.Vector3(0, 1, 0);
           const rightVec = new THREE.Vector3().crossVectors(sam.forward, upVec).normalize();
@@ -5073,7 +5731,6 @@ with open(output_path, "w", encoding="utf-8") as f:
           sam.mesh.position.addScaledVector(sam.velocity, dt).addScaledVector(corkOffset, dt);
           sam.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), sam.forward);
 
-          // Corkscrew Smoke Plume Generation
           sam.puffTimer += dt;
           if (sam.puffTimer > 0.035) {
             sam.puffTimer = 0;
@@ -5084,14 +5741,12 @@ with open(output_path, "w", encoding="utf-8") as f:
             this.samSmokePuffs.push({ mesh: puff, age: 0, maxAge: 3.6 });
           }
 
-          // Intercept & Proximity Fuze Detonation
           const distToAc = sam.mesh.position.distanceTo(this.aircraft.group.position);
           const distToDecoy = targetPoint.distanceTo(sam.mesh.position);
 
           if ((sam.isDecoyed && distToDecoy < 20) || distToAc < 18 || sam.mesh.position.y <= 0 || sam.age >= sam.maxAge) {
             this.createMultiStageExplosion(sam.mesh.position);
             if (distToAc < 22 && !sam.isDecoyed) {
-              // Close-call flak shockwave
               this.aircraft.physics.gForce += 3.5;
             }
             this.scene.remove(sam.mesh);
@@ -5108,6 +5763,92 @@ with open(output_path, "w", encoding="utf-8") as f:
           if (puff.age >= puff.maxAge) {
             this.scene.remove(puff.mesh);
             this.samSmokePuffs.splice(i, 1);
+          }
+        }
+
+        // Update adversary AI flight and dogfight loop
+        this.updateAdversary(dt);
+
+        // Adversary 30mm Tracers update
+        for (let i = this.adversaryTracers.length - 1; i >= 0; i--) {
+          const tr = this.adversaryTracers[i];
+          tr.life -= dt;
+          tr.mesh.position.addScaledVector(tr.velocity, dt);
+          tr.velocity.y -= 9.8 * dt;
+          tr.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), tr.velocity.clone().normalize());
+
+          const distToPlayer = tr.mesh.position.distanceTo(this.aircraft.group.position);
+          if (distToPlayer < 7.5) {
+            this.aircraft.physics.gForce += 2.2;
+            sound.playGunfire();
+            this.scene.remove(tr.mesh);
+            this.adversaryTracers.splice(i, 1);
+          } else if (tr.mesh.position.y <= 0 || tr.life <= 0) {
+            this.scene.remove(tr.mesh);
+            this.adversaryTracers.splice(i, 1);
+          }
+        }
+
+        // Adversary Flares update
+        for (let i = this.adversaryFlares.length - 1; i >= 0; i--) {
+          const fl = this.adversaryFlares[i];
+          fl.life -= dt;
+          fl.velocity.y -= 16 * dt;
+          fl.velocity.multiplyScalar(0.97);
+          fl.mesh.position.addScaledVector(fl.velocity, dt);
+          fl.mesh.scale.setScalar(0.9 + Math.random() * 0.8);
+          if (fl.mesh.position.y <= 0 || fl.life <= 0) {
+            this.scene.remove(fl.mesh);
+            this.adversaryFlares.splice(i, 1);
+          }
+        }
+
+        // Adversary R-73 Missiles Guidance & Player Flare Evasion
+        for (let i = this.adversaryMissiles.length - 1; i >= 0; i--) {
+          const m = this.adversaryMissiles[i];
+          m.age += dt;
+          m.speed = Math.min(650, m.speed + 190 * dt);
+
+          let targetPoint = this.aircraft.group.position.clone();
+          if (this.flares.length > 0 && this.aircraft.physics.throttle < 0.75) {
+            m.isDecoyed = true;
+            targetPoint = this.flares[0].mesh.position.clone();
+          }
+
+          const toTarget = targetPoint.clone().sub(m.mesh.position).normalize();
+          m.forward.lerp(toTarget, 4.5 * dt).normalize();
+
+          m.corkscrewPhase += 14.0 * dt;
+          const upVec = new THREE.Vector3(0, 1, 0);
+          const rightVec = new THREE.Vector3().crossVectors(m.forward, upVec).normalize();
+          const corkNormal = new THREE.Vector3().crossVectors(rightVec, m.forward).normalize();
+          const corkOffset = rightVec.clone().multiplyScalar(Math.cos(m.corkscrewPhase) * 10.0)
+            .add(corkNormal.clone().multiplyScalar(Math.sin(m.corkscrewPhase) * 10.0));
+
+          m.velocity.copy(m.forward).multiplyScalar(m.speed);
+          m.mesh.position.addScaledVector(m.velocity, dt).addScaledVector(corkOffset, dt);
+          m.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), m.forward);
+
+          m.puffTimer += dt;
+          if (m.puffTimer > 0.04) {
+            m.puffTimer = 0;
+            const puff = new THREE.Mesh(this.samSmokeGeo, this.samSmokeMat.clone());
+            puff.position.copy(m.mesh.position);
+            puff.scale.setScalar(0.8 + Math.random() * 0.4);
+            this.scene.add(puff);
+            this.samSmokePuffs.push({ mesh: puff, age: 0, maxAge: 3.2 });
+          }
+
+          const distToAc = m.mesh.position.distanceTo(this.aircraft.group.position);
+          const distToDecoy = targetPoint.distanceTo(m.mesh.position);
+          if ((m.isDecoyed && distToDecoy < 20) || distToAc < 18 || m.mesh.position.y <= 0 || m.age >= m.maxAge) {
+            this.createMultiStageExplosion(m.mesh.position);
+            if (distToAc < 22 && !m.isDecoyed) {
+              this.aircraft.physics.gForce += 3.8;
+              sound.playTargetExplosion();
+            }
+            this.scene.remove(m.mesh);
+            this.adversaryMissiles.splice(i, 1);
           }
         }
 
@@ -5496,6 +6237,33 @@ with open(output_path, "w", encoding="utf-8") as f:
           return;
         }
 
+        // Extreme G-Force Peripheral Tunneling (G-LOC Visual Narrowing)
+        const gForceVal = Math.abs(this.physics.gForce);
+        if (gForceVal > 5.2) {
+          const gRatio = Math.min(1.0, (gForceVal - 5.2) / 3.8);
+          const grad = ctx.createRadialGradient(this.cx, this.cy, this.width * (0.68 - gRatio * 0.42), this.cx, this.cy, this.width * 0.75);
+          grad.addColorStop(0, 'rgba(0, 0, 0, 0)');
+          grad.addColorStop(1, `rgba(8, 0, 0, ${(gRatio * 0.85).toFixed(2)})`);
+          ctx.fillStyle = grad;
+          ctx.fillRect(0, 0, this.width, this.height);
+        }
+
+        // Dynamic Canopy Rain / Moisture Streaks in Cockpit View
+        if (cameraMode === 0 && this.physics.altitudeFt < 4500) {
+          ctx.strokeStyle = 'rgba(210, 235, 255, 0.28)';
+          ctx.lineWidth = 1.2;
+          const streakSpeed = Math.max(12, this.physics.speedKnots * 0.12);
+          const nowMs = performance.now();
+          for (let r = 0; r < 24; r++) {
+            const rx = ((r * 137.5 + nowMs * 0.05) % this.width);
+            const ry = ((r * 93.1 + nowMs * (0.1 + (r % 5) * 0.04)) % (this.height * 0.85));
+            ctx.beginPath();
+            ctx.moveTo(rx, ry);
+            ctx.lineTo(rx + (rx - this.cx) * 0.06, ry + streakSpeed);
+            ctx.stroke();
+          }
+        }
+
         const isMobile = (this.width < 800 || this.height < 520);
         const hudCenterY = (cameraMode === 0) ? (isMobile ? this.cy - 20 : this.cy - 40) : this.cy;
 
@@ -5745,6 +6513,164 @@ with open(output_path, "w", encoding="utf-8") as f:
           }
         }
 
+        // 8. Carrier FLOLS "Meatball" Optical Approach Guidance
+        const cvnPos = new THREE.Vector3(6500, 5, 7500);
+        const distToCvn = this.physics.position.distanceTo(cvnPos);
+        if (this.physics.gearDown && distToCvn < 7500) {
+          const cdx = this.physics.position.x - 6500;
+          const cdz = this.physics.position.z - 7500;
+          const cCos = Math.cos(-0.55);
+          const cSin = Math.sin(-0.55);
+          const cLocalX = cdx * cCos - cdz * cSin;
+          const cLocalZ = cdx * cSin + cdz * cCos;
+
+          // Touchdown threshold is around cLocalZ = 180, elevation 54m MSL
+          const distAlongApproach = Math.max(20, cLocalZ - 180);
+          // Ideal 3.5 deg glide slope: tan(3.5°) ≈ 0.0612
+          const idealAlt = 54.0 + distAlongApproach * 0.0612;
+          const deltaAlt = this.physics.position.y - idealAlt;
+
+          const flolsBoxX = isMobile ? 85 : 130;
+          const flolsBoxY = hudCenterY - 95;
+
+          ctx.save();
+          ctx.strokeStyle = 'rgba(0, 255, 119, 0.45)';
+          ctx.fillStyle = 'rgba(6, 14, 20, 0.78)';
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(flolsBoxX - 60, flolsBoxY - 45, 120, 90);
+          ctx.fillRect(flolsBoxX - 60, flolsBoxY - 45, 120, 90);
+
+          // Green Horizontal Datum Bars [ ===   === ]
+          ctx.strokeStyle = '#00ff66';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.moveTo(flolsBoxX - 50, flolsBoxY); ctx.lineTo(flolsBoxX - 14, flolsBoxY);
+          ctx.moveTo(flolsBoxX + 14, flolsBoxY); ctx.lineTo(flolsBoxX + 50, flolsBoxY);
+          ctx.stroke();
+
+          // Amber Optical Meatball Position
+          const ballOffset = Math.max(-36, Math.min(36, -deltaAlt * 2.8));
+          const isWaveOff = (deltaAlt < -18 || (distAlongApproach < 900 && this.physics.climbRateFpm < -950));
+
+          if (isWaveOff) {
+            // Flashing Red Wave-Off Lights
+            const flash = Math.floor(performance.now() / 150) % 2 === 0;
+            ctx.fillStyle = flash ? '#ff2222' : '#550000';
+            ctx.fillRect(flolsBoxX - 30, flolsBoxY + 34, 60, 8);
+            ctx.font = 'bold 11px "Share Tech Mono", monospace';
+            ctx.fillStyle = '#ff2222';
+            ctx.fillText('WAVE OFF!', flolsBoxX - 26, flolsBoxY + 42);
+            if (Math.random() < 0.012) sound.playTacticalRadioCallout('WAVE_OFF');
+          } else {
+            // Amber Meatball Lens
+            ctx.fillStyle = '#ffaa00';
+            ctx.shadowColor = '#ffaa00';
+            ctx.shadowBlur = 10;
+            ctx.beginPath();
+            ctx.arc(flolsBoxX, flolsBoxY + ballOffset, 6.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+          }
+
+          // FLOLS Status readouts
+          ctx.font = '10px "Share Tech Mono", monospace';
+          ctx.fillStyle = '#00ff77';
+          const distNm = (distToCvn / 1852).toFixed(1);
+          let meatballStatus = 'ON GLIDE';
+          if (deltaAlt > 10) meatballStatus = 'HIGH';
+          else if (deltaAlt < -10) meatballStatus = 'LOW';
+          if (isWaveOff) meatballStatus = 'WAVE OFF';
+
+          ctx.fillText(`FLOLS: ${meatballStatus}`, flolsBoxX - 52, flolsBoxY - 50);
+          ctx.fillText(`CVN: ${distNm} NM`, flolsBoxX - 52, flolsBoxY + 58);
+          ctx.fillText(`VREF: 135 KT`, flolsBoxX - 52, flolsBoxY + 70);
+
+          if (distNm >= '1.4' && distNm <= '1.6' && !this.calledBall) {
+            this.calledBall = true;
+            sound.playTacticalRadioCallout('CALL_BALL');
+          }
+          ctx.restore();
+        } else {
+          this.calledBall = false;
+        }
+
+        // 9. HMDS Gen III Visor HOBS (High-Off-Boresight) Targeting Reticle
+        if (camera && this.combat && this.combat.adversary && this.combat.adversary.isAlive) {
+          const adv = this.combat.adversary;
+          const acForward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.physics.quaternion);
+          const toAdv = adv.mesh.position.clone().sub(this.physics.position).normalize();
+          const offBoresightDeg = acForward.angleTo(toAdv) * (180 / Math.PI);
+          const distAdv = this.physics.position.distanceTo(adv.mesh.position);
+
+          if (offBoresightDeg >= 6.0 && offBoresightDeg <= 85.0 && distAdv < 14000) {
+            const hobsProj = adv.mesh.position.clone().project(camera);
+            if (hobsProj.z < 1.0) {
+              const hx = (hobsProj.x * 0.5 + 0.5) * this.width;
+              const hy = (-hobsProj.y * 0.5 + 0.5) * this.height;
+
+              if (hx > 30 && hx < this.width - 30 && hy > 30 && hy < this.height - 30) {
+                this.combat.hobsTarget = { mesh: adv.mesh, name: 'SU-57 FELON' };
+                this.combat.hobsLocked = (distAdv < 6500);
+
+                ctx.save();
+                ctx.translate(hx, hy);
+
+                const hobsColor = this.combat.hobsLocked ? '#00e5ff' : '#ffaa00';
+                ctx.strokeStyle = hobsColor;
+                ctx.fillStyle = hobsColor;
+                ctx.lineWidth = this.combat.hobsLocked ? 2.4 : 1.6;
+
+                // Dashed HOBS helmet visor ring
+                ctx.setLineDash([6, 5]);
+                ctx.beginPath();
+                ctx.arc(0, 0, 32, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // Rotating corner brackets
+                const hobsAngle = performance.now() * 0.002;
+                for (let c = 0; c < 4; c++) {
+                  const ca = hobsAngle + c * (Math.PI / 2);
+                  const bx = Math.cos(ca) * 38;
+                  const by = Math.sin(ca) * 38;
+                  ctx.beginPath();
+                  ctx.arc(bx, by, 2, 0, Math.PI * 2);
+                  ctx.fill();
+                }
+
+                // Center crosshair
+                ctx.beginPath();
+                ctx.moveTo(-8, 0); ctx.lineTo(8, 0);
+                ctx.moveTo(0, -8); ctx.lineTo(0, 8);
+                ctx.stroke();
+
+                // Telemetry and lock prompt
+                ctx.font = '10px "Share Tech Mono", monospace';
+                const distNm = (distAdv / 1852).toFixed(1);
+                ctx.fillText(`HOBS [AIM-9X] // ${offBoresightDeg.toFixed(0)}° OFF NOSE`, -55, -42);
+                ctx.fillText(`BOGEY: SU-57 // ${distNm} NM`, -55, 46);
+
+                if (this.combat.hobsLocked) {
+                  const pulse = Math.floor(performance.now() / 160) % 2 === 0;
+                  if (pulse) {
+                    ctx.font = 'bold 11px "Share Tech Mono", monospace';
+                    ctx.fillStyle = '#00ff77';
+                    ctx.fillText('HOBS LOCK // PRESS SPACE', -60, 58);
+                  }
+                }
+                ctx.restore();
+              }
+            }
+          } else if (offBoresightDeg < 6.0) {
+            this.combat.hobsTarget = { mesh: adv.mesh, name: 'SU-57 FELON' };
+            this.combat.hobsLocked = (distAdv < 6500);
+          } else {
+            if (this.combat.hobsTarget && this.combat.hobsTarget.mesh === adv.mesh) {
+              this.combat.hobsLocked = false;
+            }
+          }
+        }
+
         ctx.restore();
       }
     }
@@ -5832,6 +6758,7 @@ with open(output_path, "w", encoding="utf-8") as f:
 
         this.setupEventListeners();
         this.setupUI();
+        this.switchTheater('HORMUZ');
         this.animate();
       }
 
@@ -6194,7 +7121,9 @@ with open(output_path, "w", encoding="utf-8") as f:
         this.aircraft.innerModel.visible = true;
         this.physics.isCrashed = false;
         this.physics.velocity.set(0, 0, 0);
-        this.physics.angularVelocity.set(0, 0, 0);
+        this.physics.pitchInput = 0;
+        this.physics.rollInput = 0;
+        this.physics.yawInput = 0;
 
         if (th.spawnPos) {
           this.physics.position.set(th.spawnPos.x, th.spawnPos.y, th.spawnPos.z);
@@ -6205,16 +7134,12 @@ with open(output_path, "w", encoding="utf-8") as f:
         const targetHeading = th.spawnHeading || 0;
         this.physics.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), targetHeading);
 
-        if (this.combat && this.combat.adversary) {
-          if (theaterKey === 'HORMUZ') {
-            this.combat.adversary.orbitCenter.set(2000, 2400, -6500);
-            this.combat.adversary.orbitRadius = 4800;
-            this.combat.samSitePos.set(30900, 220, -27600);
-          } else {
-            this.combat.adversary.orbitCenter.set(0, 1650, -3200);
-            this.combat.adversary.orbitRadius = 3600;
-            this.combat.samSitePos.set(1200, 225, -3200);
-          }
+        if (this.environment && this.environment.applyTheaterTerrain) {
+          this.environment.applyTheaterTerrain(theaterKey);
+        }
+
+        if (this.combat && this.combat.resetAdversary) {
+          this.combat.resetAdversary(theaterKey);
         }
 
         if (th.spawnSpeed && th.spawnSpeed > 0) {
@@ -6227,6 +7152,14 @@ with open(output_path, "w", encoding="utf-8") as f:
           this.physics.throttle = 0.0;
           this.physics.speedKnots = 0.0;
           this.physics.gearDown = true;
+        }
+
+        if (this.camera && this.physics) {
+          const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(this.physics.quaternion);
+          const up = new THREE.Vector3(0, 1, 0).applyQuaternion(this.physics.quaternion);
+          const chasePos = this.physics.position.clone().sub(fwd.clone().multiplyScalar(16)).add(up.clone().multiplyScalar(3.2));
+          this.camera.position.copy(chasePos);
+          this.camera.lookAt(this.physics.position.clone().add(fwd.clone().multiplyScalar(40)));
         }
 
         if (this.domGearBtn) {
@@ -6524,6 +7457,20 @@ with open(output_path, "w", encoding="utf-8") as f:
         this.clearCrashDebris();
         this.aircraft.innerModel.visible = true;
         this.physics.reset();
+        const currentTh = this.tacticalMap ? this.tacticalMap.currentTheaterKey : 'HORMUZ';
+        const thData = MISSION_THEATERS[currentTh] || MISSION_THEATERS.HORMUZ;
+        if (thData && thData.spawnPos) {
+          this.physics.position.set(thData.spawnPos.x, thData.spawnPos.y, thData.spawnPos.z);
+          const thHdg = thData.spawnHeading || 0;
+          this.physics.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), thHdg);
+          if (thData.spawnSpeed && thData.spawnSpeed > 0) {
+            this.physics.throttle = 0.85;
+            this.physics.speedKnots = thData.spawnSpeed;
+            const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(this.physics.quaternion);
+            this.physics.velocity.copy(fwd.multiplyScalar(thData.spawnSpeed * 0.514444));
+            this.physics.gearDown = false;
+          }
+        }
         const crashModal = document.getElementById('crash-modal');
         if (crashModal) crashModal.style.display = 'none';
         document.getElementById('master-warning').style.display = 'none';
@@ -6768,10 +7715,23 @@ with open(output_path, "w", encoding="utf-8") as f:
       }
     }
 
-    // Launch simulation on DOM load
-    window.addEventListener('DOMContentLoaded', () => {
-      window.simulationApp = new App();
-    });
+    // Bulletproof simulation launch: immediate if DOM already ready, otherwise on DOMContentLoaded
+    function launchSimulation() {
+      if (!window.simulationApp) {
+        try {
+          window.simulationApp = new App();
+        } catch (err) {
+          window.__APP_ERROR__ = err.message + '\\n' + err.stack;
+          console.error('CRITICAL APP INIT ERROR:', err);
+        }
+      }
+    }
+
+    if (document.readyState === 'loading') {
+      window.addEventListener('DOMContentLoaded', launchSimulation);
+    } else {
+      launchSimulation();
+    }
   </script>
 </body>
 </html>
